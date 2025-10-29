@@ -2,7 +2,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import {
   SidebarProvider,
   Sidebar,
@@ -19,10 +20,12 @@ import {
   MessageSquare,
   GitBranch,
   Zap,
+  Loader2,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { UserNav } from "@/components/user-nav";
 import { AppStateProvider } from "@/context/app-state-context";
+import { useAuth } from "@/context/auth-context";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -33,6 +36,26 @@ const navItems = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-muted/40">
+        <Loader2 className="animate-spin h-8 w-8 text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
   
   return (
     <AppStateProvider>
