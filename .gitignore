@@ -39,9 +39,5 @@ next-env.d.ts
 
 .env*
 
-# Firebase Auth
-firebase-debug.log
-firestore-debug.log
-
 # Project IDX (removed)
 .idx/

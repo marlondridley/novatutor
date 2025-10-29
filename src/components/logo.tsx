@@ -1,13 +1,27 @@
-import { BrainCircuit, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { GraduationCap } from "lucide-react";
 
 export function Logo() {
   return (
-    <div className="flex items-center gap-2 font-bold text-lg text-primary-foreground group-data-[collapsible=icon]:justify-center">
-      <div className="relative flex items-center justify-center size-8 bg-primary text-primary-foreground rounded-lg">
-        <BrainCircuit className="size-5" />
-        <Sparkles className="size-3 absolute -top-1 -right-1 text-accent" />
+    <div className="flex flex-col items-center gap-2 font-bold group-data-[collapsible=icon]:justify-center">
+      <div className="relative flex items-center justify-center w-20 h-20 bg-primary rounded-full shadow-lg">
+        <Image 
+          src="/supertutor-logo.png" 
+          alt="SuperNOVA Tutor" 
+          width={80}
+          height={80}
+          className="object-contain rounded-full"
+          priority
+          onError={(e) => {
+            // Fallback to icon if image doesn't load
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+        <GraduationCap className="absolute w-12 h-12 text-white" />
       </div>
-      <span className="group-data-[collapsible=icon]:hidden">SuperFocus</span>
+      <span className="text-xl font-bold text-primary group-data-[collapsible=icon]:hidden">
+        Super<span className="text-blue-600">NOVA</span> <span className="text-primary">Tutor</span>
+      </span>
     </div>
   );
 }

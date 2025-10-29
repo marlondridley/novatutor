@@ -1,10 +1,8 @@
-
 "use client";
 
 import {
     Avatar,
     AvatarFallback,
-    AvatarImage,
   } from "@/components/ui/avatar"
   import { Button } from "@/components/ui/button"
   import {
@@ -18,16 +16,9 @@ import {
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/context/auth-context";
-import { useSubscription } from "@/hooks/use-subscription";
-import { createCustomerPortalSession } from "@/lib/stripe";
-import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
   
   export function UserNav() {
     const { user, signOut } = useAuth();
-    const { subscriptionStatus } = useSubscription();
-    const { toast } = useToast();
-    const [loadingPortal, setLoadingPortal] = useState(false);
 
     if (!user) {
       return null;
@@ -40,27 +31,6 @@ import { useState } from "react";
       .join('')
       .toUpperCase()
       .slice(0, 2);
-
-    const handleManageSubscription = async () => {
-        if (!user) return;
-        setLoadingPortal(true);
-        try {
-            const portalUrl = await createCustomerPortalSession(user.id);
-            if (portalUrl) {
-                window.location.href = portalUrl;
-            } else {
-                throw new Error("Could not create customer portal session.");
-            }
-        } catch (error) {
-            console.error(error);
-            toast({
-                title: "Error",
-                description: "Could not open subscription management.",
-                variant: "destructive"
-            });
-            setLoadingPortal(false);
-        }
-    }
 
     return (
       <DropdownMenu>
@@ -89,11 +59,6 @@ import { useState } from "react";
               Profile
               <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
             </DropdownMenuItem>
-             {subscriptionStatus && (
-              <DropdownMenuItem onClick={handleManageSubscription} disabled={loadingPortal}>
-                {loadingPortal ? 'Loading...' : 'Manage Subscription'}
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem>
               Settings
               <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
@@ -108,4 +73,3 @@ import { useState } from "react";
       </DropdownMenu>
     )
   }
-  

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Mail, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/logo';
 import { useAuth } from '@/context/auth-context';
@@ -38,11 +38,12 @@ export default function LoginPage() {
   const [signupError, setSignupError] = useState('');
   const [signupSuccess, setSignupSuccess] = useState(false);
 
-  // Redirect if already logged in
-  if (user && !authLoading) {
-    router.push('/dashboard');
-    return null;
-  }
+  // Redirect if already logged in (moved to useEffect to avoid setState during render)
+  useEffect(() => {
+    if (user && !authLoading) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,17 +88,18 @@ export default function LoginPage() {
     }
   };
 
-  if (authLoading) {
+  // Show loading while auth is initializing or user is logged in
+  if (authLoading || user) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-muted/40">
+      <div className="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-background via-muted to-background">
         <Loader2 className="animate-spin h-8 w-8 text-primary" />
       </div>
     );
   }
 
   return (
-    <main className="flex h-screen w-screen items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-md">
+    <main className="flex min-h-screen w-screen items-center justify-center bg-gradient-to-br from-background via-muted to-background p-4 sm:p-6 md:p-8">
+      <Card className="w-full max-w-md shadow-lg border-2 mx-auto">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <Logo />
@@ -117,6 +119,14 @@ export default function LoginPage() {
             {/* Login Tab */}
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
+                {/* New User Notice */}
+                <Alert className="bg-blue-50 border-blue-200 text-blue-900">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertDescription>
+                    <strong>New users:</strong> Please check your email to confirm your account before logging in.
+                  </AlertDescription>
+                </Alert>
+
                 {loginError && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -166,13 +176,32 @@ export default function LoginPage() {
             {/* Signup Tab */}
             <TabsContent value="signup">
               {signupSuccess ? (
-                <Alert className="bg-green-50 border-green-200">
-                  <AlertDescription className="text-green-800">
-                    Account created successfully! Please check your email to verify your account, then you can sign in.
-                  </AlertDescription>
-                </Alert>
+                <div className="space-y-3">
+                  <Alert className="bg-green-50 border-green-200">
+                    <Mail className="h-5 w-5 text-green-600" />
+                    <AlertDescription className="text-green-800">
+                      <strong className="block mb-2">🎉 Account created successfully!</strong>
+                      <p className="text-sm">Please check your email to verify your account, then you can sign in.</p>
+                    </AlertDescription>
+                  </Alert>
+                  <Button 
+                    onClick={() => setSignupSuccess(false)} 
+                    variant="outline" 
+                    className="w-full"
+                  >
+                    Back to Login
+                  </Button>
+                </div>
               ) : (
                 <form onSubmit={handleSignup} className="space-y-4">
+                  {/* Email Confirmation Banner */}
+                  <Alert className="bg-yellow-50 border-yellow-200">
+                    <Mail className="h-4 w-4 text-yellow-600" />
+                    <AlertDescription className="text-yellow-900 text-sm">
+                      <strong>Important:</strong> After creating your account, you'll receive a confirmation email. Please verify your email to access the app.
+                    </AlertDescription>
+                  </Alert>
+
                   {signupError && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />

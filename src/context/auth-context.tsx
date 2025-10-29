@@ -112,8 +112,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('User creation failed');
+      if (authError) {
+        console.error('Auth signup error:', authError);
+        throw new Error(authError.message || 'Failed to create account');
+      }
+      
+      if (!authData.user) {
+        throw new Error('User creation failed - no user returned');
+      }
+
+      console.log('User created:', authData.user.id);
 
       // Create user profile
       const { error: profileError } = await supabase.from('profiles').insert({
@@ -122,12 +130,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...profile,
       });
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        throw new Error(profileError.message || 'Failed to create user profile');
+      }
 
+      console.log('Profile created successfully');
       return { error: null };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sign up error:', error);
-      return { error: error as Error };
+      return { 
+        error: new Error(error?.message || error?.toString() || 'An unknown error occurred during signup') 
+      };
     }
   };
 
