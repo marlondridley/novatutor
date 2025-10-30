@@ -1,8 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
     Avatar,
     AvatarFallback,
+    AvatarImage,
   } from "@/components/ui/avatar"
   import { Button } from "@/components/ui/button"
   import {
@@ -16,27 +18,55 @@ import {
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/context/auth-context";
+import { supabase } from "@/lib/supabase-client";
+import { useRouter } from "next/navigation";
   
   export function UserNav() {
     const { user, signOut } = useAuth();
-
-    if (!user) {
-      return null;
-    }
+    const router = useRouter();
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
     // Get user initials for avatar
-    const initials = user.name
+    const initials = user?.name
       .split(' ')
       .map(n => n[0])
       .join('')
       .toUpperCase()
-      .slice(0, 2);
+      .slice(0, 2) || '??';
+
+    // Load avatar image if available
+    useEffect(() => {
+      async function loadAvatar() {
+        const avatarPath = (user as any)?.avatar_url;
+        if (!avatarPath) return;
+
+        try {
+          const { data, error } = await supabase.storage
+            .from('avatars')
+            .download(avatarPath);
+
+          if (error) throw error;
+
+          const url = URL.createObjectURL(data);
+          setAvatarUrl(url);
+        } catch (error) {
+          console.log('Error loading avatar:', error);
+        }
+      }
+
+      loadAvatar();
+    }, [user]);
+
+    if (!user) {
+      return null;
+    }
 
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-8 w-8 rounded-full">
             <Avatar className="h-9 w-9">
+              {avatarUrl && <AvatarImage src={avatarUrl} alt={user.name} />}
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
           </Button>
@@ -55,12 +85,12 @@ import { useAuth } from "@/context/auth-context";
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem>
-              Profile
+            <DropdownMenuItem onClick={() => router.push('/account')}>
+              Account Settings
               <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              Settings
+            <DropdownMenuItem onClick={() => router.push('/pricing')}>
+              Subscription
               <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
             </DropdownMenuItem>
           </DropdownMenuGroup>

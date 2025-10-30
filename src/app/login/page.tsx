@@ -17,6 +17,16 @@ import { Logo } from '@/components/logo';
 import { useAuth } from '@/context/auth-context';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { supabase } from '@/lib/supabase-client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,6 +37,11 @@ export default function LoginPage() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
+  const [resetPasswordEmail, setResetPasswordEmail] = useState('');
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState('');
 
   // Signup state
   const [signupEmail, setSignupEmail] = useState('');
@@ -38,10 +53,16 @@ export default function LoginPage() {
   const [signupError, setSignupError] = useState('');
   const [signupSuccess, setSignupSuccess] = useState(false);
 
-  // Redirect if already logged in (moved to useEffect to avoid setState during render)
+  // Redirect if already logged in
   useEffect(() => {
     if (user && !authLoading) {
-      router.push('/dashboard');
+      // Check if user has subscription, otherwise redirect to pricing
+      const profile = user as any;
+      if (profile.subscription_status === 'active' || profile.subscription_status === 'trialing') {
+        router.push('/dashboard');
+      } else {
+        router.push('/pricing');
+      }
     }
   }, [user, authLoading, router]);
 
@@ -50,7 +71,7 @@ export default function LoginPage() {
     setLoginError('');
     setLoginLoading(true);
 
-    const { error } = await signIn(loginEmail, loginPassword);
+    const { error } = await signIn(loginEmail, loginPassword, rememberMe);
 
     if (error) {
       setLoginError(error.message || 'Login failed');
@@ -88,6 +109,28 @@ export default function LoginPage() {
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetPasswordError('');
+    setResetPasswordSuccess(false);
+    setResetPasswordLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetPasswordEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) throw error;
+
+      setResetPasswordSuccess(true);
+      setResetPasswordEmail('');
+    } catch (error: any) {
+      setResetPasswordError(error.message || 'Failed to send reset email');
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  };
+
   // Show loading while auth is initializing or user is logged in
   if (authLoading || user) {
     return (
@@ -111,9 +154,19 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 h-12 p-1 bg-muted">
+              <TabsTrigger 
+                value="login" 
+                className="data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md font-semibold text-base transition-all"
+              >
+                🔐 Login
+              </TabsTrigger>
+              <TabsTrigger 
+                value="signup" 
+                className="data-[state=active]:bg-green-600 data-[state=active]:text-white data-[state=active]:shadow-md font-semibold text-base transition-all"
+              >
+                ✨ Sign Up
+              </TabsTrigger>
             </TabsList>
 
             {/* Login Tab */}
@@ -160,6 +213,21 @@ export default function LoginPage() {
                   />
                 </div>
 
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="remember-me" 
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    disabled={loginLoading}
+                  />
+                  <Label 
+                    htmlFor="remember-me" 
+                    className="text-sm font-normal cursor-pointer"
+                  >
+                    Remember me for 7 days
+                  </Label>
+                </div>
+
                 <Button type="submit" className="w-full" disabled={loginLoading}>
                   {loginLoading ? (
                     <>
@@ -171,6 +239,75 @@ export default function LoginPage() {
                   )}
                 </Button>
               </form>
+
+              {/* Forgot Password Link - OUTSIDE the form */}
+              <div className="text-center mt-4">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="link" 
+                      className="text-sm text-muted-foreground hover:text-primary"
+                      type="button"
+                    >
+                      Forgot password?
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Reset Password</DialogTitle>
+                      <DialogDescription>
+                        Enter your email address and we'll send you a link to reset your password.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    {resetPasswordSuccess ? (
+                      <Alert className="bg-green-50 border-green-200">
+                        <Mail className="h-4 w-4 text-green-600" />
+                        <AlertDescription className="text-green-900">
+                          Password reset email sent! Check your inbox and follow the link to reset your password.
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <form onSubmit={handleResetPassword} className="space-y-4">
+                        {resetPasswordError && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{resetPasswordError}</AlertDescription>
+                          </Alert>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label htmlFor="reset-email">Email</Label>
+                          <Input
+                            id="reset-email"
+                            type="email"
+                            placeholder="your@email.com"
+                            value={resetPasswordEmail}
+                            onChange={(e) => setResetPasswordEmail(e.target.value)}
+                            required
+                            disabled={resetPasswordLoading}
+                          />
+                        </div>
+
+                        <Button 
+                          type="submit" 
+                          className="w-full" 
+                          disabled={resetPasswordLoading}
+                        >
+                          {resetPasswordLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            'Send Reset Link'
+                          )}
+                        </Button>
+                      </form>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              </div>
             </TabsContent>
 
             {/* Signup Tab */}

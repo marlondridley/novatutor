@@ -1,0 +1,11 @@
+This is a placeholder file. Replace this with your actual QR code image.
+
+To add your QR code:
+1. Save your QR code image (the blue one you uploaded)
+2. Name it: payment-qr-code.png
+3. Place it in this folder (public/)
+4. Replace this file
+
+The QR code should point to:
+https://buy.stripe.com/3cI4gz2Op9bXe6Z61p2VG04
+

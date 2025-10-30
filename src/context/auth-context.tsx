@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseSessionOnly } from '@/lib/supabase-client';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface UserProfile {
@@ -18,8 +18,8 @@ interface AuthContextType {
   user: UserProfile | null;
   supabaseUser: SupabaseUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, profile: Omit<UserProfile, 'id' | 'email'>) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ error: Error | null; shouldRedirectToPricing?: boolean }>;
+  signUp: (email: string, password: string, profile: Omit<UserProfile, 'id' | 'email'>) => Promise<{ error: Error | null; shouldRedirectToPricing?: boolean }>;
   signOut: () => Promise<void>;
 }
 
@@ -79,9 +79,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, rememberMe: boolean = true) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Choose storage based on "Remember Me" checkbox
+      const authClient = rememberMe ? supabase : supabaseSessionOnly;
+      
+      const { data, error } = await authClient.auth.signInWithPassword({
         email,
         password,
       });
@@ -93,10 +96,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(profile);
       }
 
-      return { error: null };
+      return { error: null, shouldRedirectToPricing: false };
     } catch (error) {
       console.error('Sign in error:', error);
-      return { error: error as Error };
+      return { error: error as Error, shouldRedirectToPricing: false };
     }
   };
 

@@ -1,5 +1,5 @@
 import { openai, DEFAULT_MODEL } from './genkit';
-import { zodToJsonSchema } from 'openai/helpers/zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { z } from 'zod';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { retryWithBackoff, DEFAULT_RETRY_CONFIG, RetryConfig } from './error-handling';

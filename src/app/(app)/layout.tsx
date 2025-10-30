@@ -26,6 +26,7 @@ import { Logo } from "@/components/logo";
 import { UserNav } from "@/components/user-nav";
 import { AppStateProvider } from "@/context/app-state-context";
 import { useAuth } from "@/context/auth-context";
+import { useSubscription } from "@/hooks/use-subscription";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -38,12 +39,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { hasPremiumAccess, loading: subscriptionLoading } = useSubscription();
 
+  // Redirect to login if not authenticated
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     }
   }, [user, loading, router]);
+
+  // Redirect to pricing if not subscribed (unless already on pricing page)
+  useEffect(() => {
+    if (!loading && !subscriptionLoading && user) {
+      const isOnPricingPage = pathname === '/pricing';
+      const isOnAccountPage = pathname === '/account';
+      
+      // Allow access to pricing and account pages without subscription
+      if (!isOnPricingPage && !isOnAccountPage && !hasPremiumAccess()) {
+        router.push('/pricing');
+      }
+    }
+  }, [user, loading, subscriptionLoading, hasPremiumAccess, pathname, router]);
 
   if (loading) {
     return (
