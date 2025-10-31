@@ -5,6 +5,8 @@ import { Camera, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useAuth } from "@/context/auth-context";
+import { uploadHomeworkImage } from "@/lib/homework-storage";
 import type { Subject } from "@/lib/types";
 
 interface HomeworkHelperProps {
@@ -13,6 +15,7 @@ interface HomeworkHelperProps {
 }
 
 export function HomeworkHelper({ subject, onCheck }: HomeworkHelperProps) {
+  const { user, supabaseUser } = useAuth();
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -39,7 +42,7 @@ export function HomeworkHelper({ subject, onCheck }: HomeworkHelperProps) {
           videoRef.current.srcObject = stream;
         }
       } catch (error) {
-        console.error("Error accessing camera:", error);
+        // Error already handled via toast notification
         setHasCameraPermission(false);
         toast({
           variant: "destructive",
@@ -84,6 +87,22 @@ export function HomeworkHelper({ subject, onCheck }: HomeworkHelperProps) {
       return;
     }
     setIsChecking(true);
+    
+    // Upload image to Supabase Storage
+    const userId = user?.id || supabaseUser?.id;
+    if (userId) {
+      try {
+        const imageUrl = await uploadHomeworkImage(imageDataUri, userId, subject);
+        if (imageUrl) {
+          // Store URL could be saved to database for future reference
+          // For now, we proceed with the image analysis
+        }
+      } catch (error) {
+        // Non-blocking: continue with analysis even if storage fails
+        // Error logged by uploadHomeworkImage function
+      }
+    }
+    
     onCheck(imageDataUri);
     setIsChecking(false);
   };

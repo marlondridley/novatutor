@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase-server';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-11-20',
+  apiVersion: '2025-10-29.clover',
 });
 
 export async function POST(req: NextRequest) {
@@ -11,6 +11,10 @@ export async function POST(req: NextRequest) {
     // Get authenticated user from Supabase
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    // Parse request body for optional coupon code
+    const body = await req.json().catch(() => ({}));
+    const { couponCode } = body;
 
     if (authError || !user) {
       return NextResponse.json(
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
     // Get user's profile for additional info (optional)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name')
+      .select('name')
       .eq('id', user.id)
       .single();
 
@@ -45,8 +49,18 @@ export async function POST(req: NextRequest) {
         },
       ],
       mode: 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/signup?canceled=true`,
+      
+      // 🎟️ Apply coupon if provided
+      ...(couponCode && {
+        discounts: [{
+          coupon: couponCode,
+        }],
+      }),
+      
+      // Allow promotion codes to be entered at checkout
+      allow_promotion_codes: true,
       
       // 💳 Collect billing address for tax calculation
       billing_address_collection: 'required',
@@ -68,12 +82,6 @@ export async function POST(req: NextRequest) {
           user_email: userEmail,
         },
       },
-      
-      // Optional: Pre-fill customer details
-      ...(profile?.full_name && {
-        customer_creation: 'always' as const,
-        customer_email: userEmail,
-      }),
     });
 
     return NextResponse.json({

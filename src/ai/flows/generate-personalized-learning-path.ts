@@ -11,6 +11,7 @@
 
 import { generateStructured } from '@/ai/helpers';
 import { LEARNING_PATH_SYSTEM_PROMPT } from '@/ai/prompts';
+import { searchEducationalContent, formatRAGContext, isRAGConfigured } from '@/lib/rag-pipeline';
 import { z } from 'zod';
 
 const GeneratePersonalizedLearningPathInputSchema = z.object({
@@ -45,13 +46,37 @@ export type GeneratePersonalizedLearningPathOutput = z.infer<typeof GeneratePers
  */
 export async function generatePersonalizedLearningPath(input: GeneratePersonalizedLearningPathInput): Promise<GeneratePersonalizedLearningPathOutput> {
   // Use constant system prompt for context caching
-  const userPrompt = `Generate a personalized learning path for the following student:
+  let userPrompt = `Generate a personalized learning path for the following student:
 
 Student ID: ${input.studentId}
 Subject: ${input.subject}
 Mastery Scores: ${JSON.stringify(input.masteryScores, null, 2)}
 Intervention Effectiveness: ${JSON.stringify(input.interventionEffectiveness, null, 2)}
 Learning Style: ${input.learningStyle || 'Not specified'}`;
+
+  // Enhance with RAG if configured
+  if (isRAGConfigured()) {
+    try {
+      const ragResults = await searchEducationalContent(
+        `${input.subject} learning path ${Object.keys(input.masteryScores).join(' ')}`,
+        {
+          subject: input.subject,
+        }
+      );
+      
+      if (ragResults.length > 0) {
+        const ragContext = formatRAGContext(ragResults);
+        userPrompt += ragContext;
+      }
+    } catch (error) {
+      // Non-blocking: continue without RAG if search fails
+      const { logger } = await import('@/lib/logger');
+      logger.warn('RAG search failed, continuing without additional context', {
+        subject: input.subject,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   return generateStructured({
     messages: [

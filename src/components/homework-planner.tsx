@@ -15,6 +15,7 @@ import { createHomeworkPlanAction } from "@/lib/actions";
 import type { HomeworkPlannerOutput } from "@/ai/flows/homework-planner-flow";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { AppStateContext } from "@/context/app-state-context";
+import { useAuth } from "@/context/auth-context";
 
 const formSchema = z.object({
   tasks: z.array(z.object({
@@ -28,6 +29,7 @@ type HomeworkFormValues = z.infer<typeof formSchema>;
 
 export function HomeworkPlanner() {
   const { setHasCompletedPlanner } = useContext(AppStateContext);
+  const { user, supabaseUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<HomeworkPlannerOutput | null>(null);
   const { toast } = useToast();
@@ -47,7 +49,15 @@ export function HomeworkPlanner() {
   const onSubmit = async (data: HomeworkFormValues) => {
     setLoading(true);
     setPlan(null);
-    const response = await createHomeworkPlanAction({ studentName: "Student", ...data });
+    
+    // Get studentId from user profile if available, otherwise use user id
+    const studentId = user?.student_id || supabaseUser?.id;
+    
+    const response = await createHomeworkPlanAction({
+      studentName: user?.name || "Student",
+      studentId: studentId,
+      ...data,
+    });
 
     if (response.success && response.data) {
       setPlan(response.data);

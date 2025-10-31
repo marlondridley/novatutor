@@ -25,48 +25,53 @@ export interface UserProfile {
  * Update subscription status via Supabase dashboard or webhook
  */
 export function useSubscription() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshProfile } = useAuth();
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const loadSubscriptionStatus = async (forceRefresh = false) => {
     if (authLoading || !user) {
       setLoading(true);
       return;
     }
 
-    async function loadSubscriptionStatus() {
-      try {
-        setLoading(true);
-        
-        // Get user profile with subscription status
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        if (error) {
-          console.error('Error loading subscription status:', error);
-          setSubscriptionStatus('free');
-          return;
-        }
-
-        if (data) {
-          setProfile(data as UserProfile);
-          setSubscriptionStatus(data.subscription_status as SubscriptionStatus);
-        } else {
-          setSubscriptionStatus('free');
-        }
-      } catch (error) {
-        console.error('Error loading subscription data:', error);
-        setSubscriptionStatus('free');
-      } finally {
-        setLoading(false);
+    try {
+      setLoading(true);
+      
+      // Force refresh auth profile cache if requested
+      if (forceRefresh && refreshProfile) {
+        await refreshProfile();
       }
-    }
+      
+      // Get user profile with subscription status
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
 
+      if (error) {
+        console.error('Error loading subscription status:', error);
+        setSubscriptionStatus('free');
+        return;
+      }
+
+      if (data) {
+        setProfile(data as UserProfile);
+        setSubscriptionStatus(data.subscription_status as SubscriptionStatus);
+      } else {
+        setSubscriptionStatus('free');
+      }
+    } catch (error) {
+      console.error('Error loading subscription data:', error);
+      setSubscriptionStatus('free');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadSubscriptionStatus();
   }, [user, authLoading]);
 
@@ -100,5 +105,6 @@ export function useSubscription() {
     hasActiveSubscription,
     hasPremiumAccess,
     isSubscriptionExpired,
+    refreshSubscription: () => loadSubscriptionStatus(true),
   };
 }

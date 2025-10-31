@@ -18,13 +18,18 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import AvatarUpload from '@/components/avatar-upload';
 import { useSubscriptionStatus } from '@/hooks/use-subscription-status';
+import { useSubscription } from '@/hooks/use-subscription';
 import { ManageChildSubscriptions } from '@/components/manage-child-subscriptions';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function AccountForm({ user }: { user: User | null }) {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   // Profile fields
   const [fullName, setFullName] = useState<string | null>(null);
@@ -34,6 +39,22 @@ export default function AccountForm({ user }: { user: User | null }) {
   
   // Subscription status
   const { subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
+  const { refreshSubscription } = useSubscription();
+
+  // Handle payment success redirect
+  useEffect(() => {
+    const paymentStatus = searchParams.get('payment');
+    if (paymentStatus === 'success') {
+      // Refresh subscription status after successful payment
+      setTimeout(() => {
+        refreshSubscription();
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 5000);
+        // Remove query parameter from URL
+        router.replace('/account');
+      }, 1000);
+    }
+  }, [searchParams, router, refreshSubscription]);
 
   const getProfile = useCallback(async () => {
     try {
@@ -248,25 +269,42 @@ export default function AccountForm({ user }: { user: User | null }) {
                     {subscriptionStatus === 'active' && (
                       <span className="text-sm text-muted-foreground">Premium Access</span>
                     )}
+                    {subscriptionStatus === 'trialing' && (
+                      <span className="text-sm text-muted-foreground">Trial Active</span>
+                    )}
                     {subscriptionStatus === 'free' && (
                       <span className="text-sm text-muted-foreground">Free Tier</span>
                     )}
                   </div>
                 </div>
                 
-                {subscriptionStatus && subscriptionStatus !== 'free' && subscriptionStatus !== 'canceled' ? (
-                  <Button onClick={handleManageSubscription} variant="outline">
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Manage Billing
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => refreshSubscription()}
+                    variant="ghost"
+                    size="sm"
+                    disabled={subscriptionLoading}
+                  >
+                    {subscriptionLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Refresh'
+                    )}
                   </Button>
-                ) : (
-                  <Button asChild>
-                    <a href="/pricing">
-                      <Crown className="mr-2 h-4 w-4" />
-                      Upgrade to Premium
-                    </a>
-                  </Button>
-                )}
+                  {subscriptionStatus && subscriptionStatus !== 'free' && subscriptionStatus !== 'canceled' ? (
+                    <Button onClick={handleManageSubscription} variant="outline">
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Manage Billing
+                    </Button>
+                  ) : (
+                    <Button asChild>
+                      <a href="/pricing">
+                        <Crown className="mr-2 h-4 w-4" />
+                        Upgrade to Premium
+                      </a>
+                    </Button>
+                  )}
+                </div>
               </div>
               
               {subscriptionStatus === 'past_due' && (

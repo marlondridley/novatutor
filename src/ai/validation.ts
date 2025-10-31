@@ -145,7 +145,10 @@ export function validateGradeLevel(grade: string | undefined | null): string {
  */
 export function validateStudentId(studentId: string | undefined | null): string {
   if (!studentId || typeof studentId !== 'string') {
-    throw new ValidationError('Student ID is required', 'studentId');
+    throw new ValidationError(
+      'Student ID is required. Make sure user profile has a valid student_id.',
+      'studentId'
+    );
   }
 
   const sanitized = sanitizeInput(studentId);

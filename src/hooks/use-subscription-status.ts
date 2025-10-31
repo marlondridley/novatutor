@@ -68,26 +68,8 @@ export function useSubscriptionStatus(): SubscriptionInfo {
 
     fetchSubscription();
 
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel('subscription-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'profiles',
-        },
-        (payload) => {
-          // Refresh subscription when profile changes
-          fetchSubscription();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
+    // ⚡ REMOVED: Real-time subscription (unnecessary WebSocket connection)
+    // Subscription status updates happen infrequently, polling on page load is sufficient
   }, []);
 
   return subscription;

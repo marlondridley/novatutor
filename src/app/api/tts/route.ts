@@ -1,5 +1,8 @@
 import { textToSpeechStream } from '@/ai/flows/text-to-speech-flow';
 import { NextRequest } from 'next/server';
+import { createClient } from '@/lib/supabase-server';
+import { rateLimit, rateLimiters } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 /**
  * API Route for streaming Text-to-Speech
@@ -7,11 +10,32 @@ import { NextRequest } from 'next/server';
  * Usage:
  * POST /api/tts
  * Body: { text: string, voice?: string, speed?: number }
+ * Headers: { Authorization: Bearer <token> }
  * 
  * Returns: Streaming MP3 audio
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
+    // Rate limiting
+    const rateLimitResponse = await rateLimit(request, rateLimiters.ai);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    // Authenticate user with Supabase JWT
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      logger.warn('TTS API: Unauthorized access attempt');
+      return new Response(
+        JSON.stringify({ error: 'Not authenticated' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    logger.apiRequest('POST', '/api/tts', { userId: user.id });
+
     const body = await request.json();
     const { text, voice = 'alloy', speed = 1.0 } = body;
 

@@ -9,34 +9,39 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// Single client instance for browser (prevents multiple instances warning)
-export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    // Store session in localStorage for persistence across browser sessions
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    // Auto-refresh token before it expires (keeps user logged in)
-    autoRefreshToken: true,
-    // Persist session across browser tabs and restarts
-    persistSession: true,
-    // Detect session in URL (for email confirmations, password resets, etc.)
-    detectSessionInUrl: true,
-    // Session will be stored and auto-refresh for 7 days
-    storageKey: 'supabase.auth.token',
-  },
-});
+// ⚡ Single client instance to avoid "Multiple GoTrueClient instances" warning
+// We'll handle "Remember Me" by switching storage dynamically instead of creating multiple clients
+let clientInstance: ReturnType<typeof createSupabaseClient> | null = null;
 
-// Session-only client (for when "Remember Me" is unchecked)
-export const supabaseSessionOnly = typeof window !== 'undefined' 
-  ? createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+function getSupabaseClient() {
+  if (!clientInstance && typeof window !== 'undefined') {
+    clientInstance = createSupabaseClient(supabaseUrl!, supabaseAnonKey!, {
       auth: {
-        storage: window.sessionStorage, // Cleared when browser closes
+        storage: window.localStorage, // Default to localStorage
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
-        storageKey: 'supabase.auth.session',
+        storageKey: 'supabase.auth.token',
       },
-    })
-  : supabase; // Fallback to default for SSR
+    });
+  }
+  return clientInstance;
+}
+
+// Single client instance for browser
+export const supabase = typeof window !== 'undefined' 
+  ? getSupabaseClient()! 
+  : createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+    });
+
+// ⚡ DEPRECATED: Use supabase client with storage switching instead
+// Keeping for backward compatibility but will use same instance
+export const supabaseSessionOnly = supabase;
 
 // Database types will be generated here later
 export type Json =

@@ -62,6 +62,8 @@ import {
     saveConversationContext,
     getConversationContext,
 } from "@/lib/redis";
+import { createClient } from "@/lib/supabase-server";
+import { logger } from "@/lib/logger";
 
 export async function getEducationalAssistantResponse(
   input: ConnectWithSubjectSpecializedTutorInput & { userId?: string }
@@ -109,7 +111,10 @@ export async function getEducationalAssistantResponse(
       remaining: rateLimit.remaining 
     };
   } catch (error: any) {
-    console.error('Educational Assistant Error:', error);
+    logger.error('Educational Assistant Error', error instanceof Error ? error : new Error(String(error)), {
+      userId: input.userId,
+      subject: input.subject,
+    });
     
     // Handle different error types
     if (error instanceof ValidationError) {
@@ -156,7 +161,10 @@ export async function getCoachingIntervention(
     
     return { success: true, data: response };
   } catch (error: any) {
-    console.error('Coaching Intervention Error:', error);
+    logger.error('Coaching Intervention Error', error instanceof Error ? error : new Error(String(error)), {
+      studentId: input.studentId,
+      subject: input.subject,
+    });
     
     if (error instanceof ValidationError) {
       return { success: false, error: error.message };
@@ -241,7 +249,11 @@ export async function getLearningPath(
     
     return { success: true, data: response, remaining: rateLimit.remaining };
   } catch (error: any) {
-    console.error('Learning Path Error:', error);
+    logger.error('Learning Path Error', error instanceof Error ? error : new Error(String(error)), {
+      userId: input.userId,
+      studentId: input.studentId,
+      subject: input.subject,
+    });
     
     if (error instanceof ValidationError) {
       return { success: false, error: error.message };
@@ -277,7 +289,9 @@ export async function getHomeworkFeedbackAction(input: HomeworkFeedbackInput) {
         });
         return { success: true, data: response };
     } catch (error: any) {
-        console.error('Homework Feedback Error:', error);
+        logger.error('Homework Feedback Error', error instanceof Error ? error : new Error(String(error)), {
+            subject: input.subject,
+        });
         
         if (error instanceof ValidationError) {
             return { success: false, error: error.message };
@@ -303,7 +317,7 @@ export async function generateIllustrationAction(input: GenerateIllustrationInpu
         const response = await generateIllustration(input);
         return { success: true, data: response };
     } catch (error) {
-        console.error(error);
+        logger.error('Illustration Generation Error', error instanceof Error ? error : new Error(String(error)));
         return { success: false, error: "Failed to generate illustration." };
     }
 }
@@ -313,7 +327,7 @@ export async function textToSpeechAction(input: TextToSpeechInput) {
         const response = await textToSpeech(input);
         return { success: true, data: response };
     } catch (error) {
-        console.error(error);
+        logger.error('Text-to-Speech Error', error instanceof Error ? error : new Error(String(error)));
         return { success: false, error: "Failed to convert text to speech." };
     }
 }
@@ -329,7 +343,7 @@ export async function getJokeAction(input: JokeTellerInput) {
         });
         return { success: true, data: response };
     } catch (error: any) {
-        console.error('Joke Generation Error:', error);
+        logger.error('Joke Generation Error', error instanceof Error ? error : new Error(String(error)));
         
         if (error instanceof ValidationError) {
             return { success: false, error: error.message };
@@ -350,27 +364,50 @@ export async function getJokeAction(input: JokeTellerInput) {
     }
 }
 
-export async function createHomeworkPlanAction(input: HomeworkPlannerInput) {
+export async function createHomeworkPlanAction(
+    input: HomeworkPlannerInput & { studentId?: string }
+) {
     try {
-        // Validate inputs
-        const validatedStudentId = validateStudentId(input.studentId);
+        // Get studentId from session if not provided
+        let studentId = input.studentId;
         
-        // Validate assignments array
-        if (!Array.isArray(input.assignments) || input.assignments.length === 0) {
-            throw new ValidationError('At least one assignment is required', 'assignments');
+        if (!studentId) {
+            const supabase = await createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            if (session?.user) {
+                // Try to get student_id from profile
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('student_id, id')
+                    .eq('id', session.user.id)
+                    .single();
+                
+                studentId = profile?.student_id || session.user.id;
+            }
         }
         
-        if (input.assignments.length > 20) {
-            throw new ValidationError('Too many assignments (max 20)', 'assignments');
+        // Validate studentId (required for tracking/analytics)
+        const validatedStudentId = validateStudentId(studentId);
+        
+        // Validate tasks array (the input uses 'tasks', not 'assignments')
+        if (!Array.isArray(input.tasks) || input.tasks.length === 0) {
+            throw new ValidationError('At least one task is required', 'tasks');
         }
         
+        if (input.tasks.length > 20) {
+            throw new ValidationError('Too many tasks (max 20)', 'tasks');
+        }
+        
+        // The flow expects studentName and tasks, not studentId
         const response = await createHomeworkPlan({
-            ...input,
-            studentId: validatedStudentId,
+            studentName: input.studentName,
+            tasks: input.tasks,
         });
+        
         return { success: true, data: response };
     } catch (error: any) {
-        console.error('Homework Planner Error:', error);
+        logger.error('Homework Planner Error', error instanceof Error ? error : new Error(String(error)));
         
         if (error instanceof ValidationError) {
             return { success: false, error: error.message };
@@ -397,7 +434,10 @@ export async function generateTestPrepAction(input: TestPrepInput) {
         });
         return { success: true, data: response };
     } catch (error: any) {
-        console.error('Test Prep Error:', error);
+        logger.error('Test Prep Error', error instanceof Error ? error : new Error(String(error)), {
+            subject: input.subject,
+            topic: input.topic,
+        });
         
         if (error instanceof ValidationError) {
             return { success: false, error: error.message };
@@ -423,7 +463,7 @@ export async function speechToTextAction(input: SpeechToTextInput) {
         const response = await speechToText(input);
         return { success: true, data: response };
     } catch (error) {
-        console.error(error);
+        logger.error('Speech-to-Text Error', error instanceof Error ? error : new Error(String(error)));
         return { success: false, error: "Failed to transcribe audio." };
     }
 }

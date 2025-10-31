@@ -57,7 +57,8 @@ export async function textToSpeech(input: TextToSpeechInput): Promise<TextToSpee
 
     return { audioUrl };
   } catch (error: any) {
-    console.error('OpenAI TTS Error:', error);
+    const { logger } = await import('@/lib/logger');
+    logger.error('OpenAI TTS Error', error as Error, { input: { voice: input.voice, speed: input.speed } });
     throw new Error(`Failed to generate speech: ${error.message || 'Unknown error'}`);
   }
 }
@@ -95,7 +96,8 @@ export async function* textToSpeechStream(
       }
     }
   } catch (error: any) {
-    console.error('OpenAI TTS Streaming Error:', error);
+    const { logger } = await import('@/lib/logger');
+    logger.error('OpenAI TTS Streaming Error', error as Error, { input: { voice: input.voice, speed: input.speed } });
     throw new Error(`Failed to stream speech: ${error.message || 'Unknown error'}`);
   }
 }

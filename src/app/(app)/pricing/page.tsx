@@ -1,65 +1,68 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, Sparkles, CreditCard } from 'lucide-react';
-import { CheckoutButton } from '@/components/checkout-button';
+import { useEffect, useState } from 'react';
+import Script from 'next/script';
+import { supabase } from '@/lib/supabase-client';
+import { Loader2 } from 'lucide-react';
 
-const features = [
-    "Personalized Learning Paths",
-    "AI-Powered Tutoring with DeepSeek",
-    "Executive Function Coaching",
-    "Homework Help & Feedback",
-    "Unlimited Test Prep",
-    "Focus & Productivity Tools",
-    "Text-to-Speech Audio",
-    "Math Problem Solving",
-    "24/7 AI Tutor Access",
-    "Progress Tracking & Analytics"
-];
+// Declare Stripe Pricing Table custom element for TypeScript
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'stripe-pricing-table': React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          'pricing-table-id': string;
+          'publishable-key': string;
+          'client-reference-id'?: string;
+          'customer-email'?: string;
+        },
+        HTMLElement
+      >;
+    }
+  }
+}
 
 export default function PricingPage() {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function getUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserId(user?.id || null);
+      setUserEmail(user?.email || null);
+      setLoading(false);
+    }
+    getUser();
+  }, []);
 
   return (
     <main className="flex flex-1 items-center justify-center p-4 lg:p-6">
-      <div className="w-full max-w-2xl mx-auto">
-        {/* Pricing Card */}
-        <Card className="w-full">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <Sparkles className="h-12 w-12 text-primary" />
-            </div>
-            <CardTitle className="text-3xl">Premium Plan</CardTitle>
-            <CardDescription>
-              Unlock your full learning potential
-            </CardDescription>
-                    <div className="mt-4">
-                      <span className="text-5xl font-bold text-primary">$12.99</span>
-                      <span className="text-muted-foreground">/month</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Cancel anytime • No commitment
-                    </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <ul className="space-y-3">
-              {features.map((feature) => (
-                <li key={feature} className="flex items-start gap-3">
-                  <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">{feature}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-                  <CardFooter className="flex flex-col gap-3">
-                    <CheckoutButton className="w-full">
-                      <CreditCard className="mr-2 h-5 w-5" />
-                      Subscribe Now
-                    </CheckoutButton>
-                    <p className="text-xs text-center text-muted-foreground">
-                      Secure checkout powered by Stripe
-                    </p>
-                  </CardFooter>
-        </Card>
+      <div className="w-full max-w-4xl mx-auto">
+        {/* Load Stripe Pricing Table Script */}
+        <Script
+          src="https://js.stripe.com/v3/pricing-table.js"
+          strategy="lazyOnload"
+        />
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : userId && userEmail ? (
+          /* Stripe Pricing Table with user context */
+          <stripe-pricing-table
+            pricing-table-id="prctbl_1SO5iLGxHdRwEkVK0LTy9JqE"
+            publishable-key="pk_live_51S5Tk9GxHdRwEkVK9UvEBwpbWo4XIKpDXvOrU4Q8g0UAhmipwAfKm3zmJTRMBCdo2kHyL9I94gZ4kIQjor1xUqy900TJUzjNms"
+            client-reference-id={userId}
+            customer-email={userEmail}
+          />
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Please log in to view pricing</p>
+          </div>
+        )}
       </div>
     </main>
   );

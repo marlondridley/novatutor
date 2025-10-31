@@ -98,7 +98,12 @@ export async function speechToText(input: SpeechToTextInput): Promise<SpeechToTe
       );
     }
 
-    console.log(`🎤 Transcribing audio (${(audioFile.size / 1024).toFixed(2)}KB, ${ext})...`);
+    const { logger } = await import('@/lib/logger');
+    logger.info('Transcribing audio', {
+      sizeKB: (audioFile.size / 1024).toFixed(2),
+      format: ext,
+      language: language || 'auto',
+    });
 
     // Call Whisper API
     const transcription = await openai.audio.transcriptions.create({
@@ -109,7 +114,9 @@ export async function speechToText(input: SpeechToTextInput): Promise<SpeechToTe
       response_format: 'json', // Can also use 'text', 'srt', 'vtt'
     });
 
-    console.log(`✅ Transcription complete (${transcription.text.length} characters)`);
+    logger.info('Transcription complete', {
+      transcriptLength: transcription.text.length,
+    });
 
     return {
       transcript: transcription.text,

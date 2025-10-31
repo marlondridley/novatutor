@@ -31,11 +31,33 @@ Deno.serve(async (request) => {
       cryptoProvider
     )
   } catch (err: any) {
+    // Supabase Edge Functions use console for logging
     console.error("❌ Webhook signature verification failed.", err.message)
     return new Response(`Webhook Error: ${err.message}`, { status: 400 })
   }
 
-  console.log(`🔔 Event received: ${event.type}`)
+  // Supabase Edge Functions use console for logging (acceptable in serverless functions)
+  console.log(`🔔 Event received: ${event.type} (ID: ${event.id})`)
+
+  // ✅ IDEMPOTENCY CHECK - Prevent duplicate processing
+  const { data: existingEvent } = await supabase
+    .from('webhook_events')
+    .select('id, status')
+    .eq('stripe_event_id', event.id)
+    .single()
+
+  if (existingEvent) {
+    console.log(`✅ Event ${event.id} already processed (status: ${existingEvent.status})`)
+    return new Response(JSON.stringify({ received: true, already_processed: true }), { status: 200 })
+  }
+
+  // Log event as pending
+  await supabase.from('webhook_events').insert({
+    stripe_event_id: event.id,
+    event_type: event.type,
+    data: event.data.object,
+    status: 'pending',
+  })
 
   try {
     switch (event.type) {
@@ -90,9 +112,27 @@ Deno.serve(async (request) => {
         console.log(`⚪ Unhandled event type: ${event.type}`)
     }
 
-    return new Response(JSON.stringify({ received: true }), { status: 200 })
+    // ✅ Mark event as processed
+    await supabase
+      .from('webhook_events')
+      .update({ status: 'processed', processed_at: new Date().toISOString() })
+      .eq('stripe_event_id', event.id)
+
+    console.log(`✅ Event ${event.id} processed successfully`)
+    return new Response(JSON.stringify({ received: true, processed: true }), { status: 200 })
   } catch (err: any) {
     console.error("❌ Error processing event:", err)
+    
+    // ❌ Mark event as failed
+    await supabase
+      .from('webhook_events')
+      .update({ 
+        status: 'failed', 
+        error_message: err.message,
+        retry_count: 1 
+      })
+      .eq('stripe_event_id', event.id)
+
     return new Response("Webhook handler failed", { status: 500 })
   }
 })
@@ -102,10 +142,12 @@ Deno.serve(async (request) => {
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log("💳 Checkout completed:", session.id)
 
+  const customerId = (typeof session.customer === 'string' ? session.customer : undefined) as string | undefined
+
   // 🎯 MULTI-SUBSCRIPTION: Check if this is a multi-profile checkout
   if (session.metadata?.type === "multi_subscription" && session.metadata?.profile_ids) {
     console.log("👨‍👩‍👧‍👦 Multi-subscription checkout detected")
-    await handleMultiSubscriptionCheckout(session)
+    await handleMultiSubscriptionCheckout(session, customerId)
     return
   }
 
@@ -120,19 +162,20 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         subscription_status: "active",
         subscription_id: session.subscription as string,
         subscription_expires_at: null,
+        stripe_customer_id: customerId ?? null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", supabaseUserId)
 
     if (error) console.error("❌ Failed to activate subscription:", error)
-    else console.log(`✅ Subscription activated for user ${supabaseUserId}`)
+    else console.log(`✅ Subscription activated for user ${supabaseUserId}, customer=${customerId}`)
     return
   }
 
   // 🔄 FALLBACK: If no user ID, fall back to email matching (legacy support)
   let customerEmail = session.customer_email
-  if (!customerEmail && session.customer) {
-    const customer = await stripe.customers.retrieve(session.customer as string)
+  if (!customerEmail && customerId) {
+    const customer = await stripe.customers.retrieve(customerId)
     customerEmail = (customer as Stripe.Customer).email || undefined
   }
 
@@ -147,16 +190,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       subscription_status: "active",
       subscription_id: session.subscription as string,
       subscription_expires_at: null,
+      stripe_customer_id: customerId ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("email", customerEmail)
 
   if (error) console.error("❌ Failed to activate subscription:", error)
-  else console.log(`✅ Subscription activated for ${customerEmail} (email fallback)`)
+  else console.log(`✅ Subscription activated for ${customerEmail} (email fallback), customer=${customerId}`)
 }
 
 // Handle multi-subscription checkout (multiple children paid at once)
-async function handleMultiSubscriptionCheckout(session: Stripe.Checkout.Session) {
+async function handleMultiSubscriptionCheckout(session: Stripe.Checkout.Session, customerId?: string) {
   const profileIds = session.metadata!.profile_ids!.split(",")
   const subscriptionId = session.subscription as string
   
@@ -170,6 +214,7 @@ async function handleMultiSubscriptionCheckout(session: Stripe.Checkout.Session)
         subscription_status: "active",
         subscription_id: subscriptionId,
         subscription_expires_at: null,
+        stripe_customer_id: customerId ?? null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", profileId.trim())
@@ -186,14 +231,14 @@ async function handleMultiSubscriptionCheckout(session: Stripe.Checkout.Session)
   const results = await Promise.all(updates)
   const successCount = results.filter(r => r.success).length
   
-  console.log(`✅ Multi-subscription complete: ${successCount}/${profileIds.length} profiles activated`)
+  console.log(`✅ Multi-subscription complete: ${successCount}/${profileIds.length} profiles activated, customer=${customerId}`)
 }
 
 async function handleSubscriptionUpsert(customerId: string, sub?: Stripe.Subscription) {
   // 🎯 MULTI-SUBSCRIPTION: Check if this is a multi-profile subscription
   if (sub?.metadata?.type === "multi_subscription" && sub.metadata.profile_ids) {
     console.log("👨‍👩‍👧‍👦 Multi-subscription update detected")
-    await handleMultiSubscriptionUpdate(sub)
+    await handleMultiSubscriptionUpdate(sub, customerId)
     return
   }
 
@@ -228,6 +273,7 @@ async function handleSubscriptionUpsert(customerId: string, sub?: Stripe.Subscri
     subscription_expires_at: sub?.current_period_end
       ? new Date(sub.current_period_end * 1000).toISOString()
       : null,
+    stripe_customer_id: customerId,
     updated_at: new Date().toISOString(),
   }
 
@@ -239,7 +285,7 @@ async function handleSubscriptionUpsert(customerId: string, sub?: Stripe.Subscri
       .eq("id", supabaseUserId)
 
     if (error) console.error("❌ Error updating subscription:", error)
-    else console.log(`✅ Subscription updated for user ${supabaseUserId} → ${status}`)
+    else console.log(`✅ Subscription updated for user ${supabaseUserId} → ${status}, customer=${customerId}`)
     return
   }
 
@@ -258,11 +304,11 @@ async function handleSubscriptionUpsert(customerId: string, sub?: Stripe.Subscri
     .eq("email", customerEmail)
 
   if (error) console.error("❌ Error updating subscription:", error)
-  else console.log(`✅ Subscription updated for ${customerEmail} → ${status} (email fallback)`)
+  else console.log(`✅ Subscription updated for ${customerEmail} → ${status} (email fallback), customer=${customerId}`)
 }
 
 // Handle multi-subscription updates (quantity changes, status changes)
-async function handleMultiSubscriptionUpdate(sub: Stripe.Subscription) {
+async function handleMultiSubscriptionUpdate(sub: Stripe.Subscription, customerId: string) {
   const profileIds = sub.metadata!.profile_ids!.split(",").map(id => id.trim())
   const subscriptionId = sub.id
   
@@ -298,6 +344,7 @@ async function handleMultiSubscriptionUpdate(sub: Stripe.Subscription) {
         subscription_expires_at: sub.current_period_end
           ? new Date(sub.current_period_end * 1000).toISOString()
           : null,
+        stripe_customer_id: customerId,
         updated_at: new Date().toISOString(),
       })
       .eq("id", profileId)
@@ -361,6 +408,7 @@ async function handleMultiSubscriptionUpdate(sub: Stripe.Subscription) {
 async function updateSubscriptionStatus(customerId: string, status: string, subscription?: Stripe.Subscription) {
   const updateData: any = {
     subscription_status: status,
+    stripe_customer_id: customerId,
     updated_at: new Date().toISOString(),
   }
 
@@ -379,7 +427,7 @@ async function updateSubscriptionStatus(customerId: string, status: string, subs
       .eq("id", supabaseUserId)
 
     if (error) console.error("❌ Error updating status:", error)
-    else console.log(`⚙️ Updated user ${supabaseUserId} → ${status}`)
+    else console.log(`⚙️ Updated user ${supabaseUserId} → ${status}, customer=${customerId}`)
     return
   }
 
@@ -398,6 +446,6 @@ async function updateSubscriptionStatus(customerId: string, status: string, subs
     .eq("email", customerEmail)
 
   if (error) console.error("❌ Error updating status:", error)
-  else console.log(`⚙️ Updated ${customerEmail} → ${status} (email fallback)`)
+  else console.log(`⚙️ Updated ${customerEmail} → ${status} (email fallback), customer=${customerId}`)
 }
 

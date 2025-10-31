@@ -1,5 +1,20 @@
+/**
+ * @fileOverview Demo/placeholder data for UI charts and visualizations
+ * 
+ * NOTE: These are DEMO DATA only. In production, replace with real data from:
+ * - Supabase queries for user performance metrics
+ * - Analytics tracking for learning patterns
+ * - Real-time data from user interactions
+ * 
+ * These are kept for UI development and fallback display when no real data is available.
+ */
+
 import type { ChartConfig } from "@/components/ui/chart";
 
+/** 
+ * DEMO DATA: Sample mastery scores for chart display
+ * TODO: Replace with real user performance data from Supabase
+ */
 export const masteryScoresData = [
   { concept: "Algebra", score: 75, fill: "var(--color-algebra)" },
   { concept: "Geometry", score: 45, fill: "var(--color-geometry)" },
@@ -35,6 +50,10 @@ export const masteryChartConfig = {
 } satisfies ChartConfig;
 
 
+/** 
+ * DEMO DATA: Sample intervention effectiveness metrics
+ * TODO: Replace with real coaching intervention data
+ */
 export const interventionEffectivenessData = [
     { name: 'Visual Aids', effectiveness: 85, fill: 'hsl(var(--chart-1))' },
     { name: 'Practice Problems', effectiveness: 92, fill: 'hsl(var(--chart-2))' },
@@ -50,6 +69,10 @@ export const interventionChartConfig = {
 } satisfies ChartConfig;
 
 
+/** 
+ * DEMO DATA: Sample learning patterns timeline
+ * TODO: Replace with real user activity data from Supabase
+ */
 export const learningPatternsData = [
     { date: '2024-07-01', timeSpent: 120, topicsCovered: 3 },
     { date: '2024-07-02', timeSpent: 90, topicsCovered: 2 },
@@ -71,8 +94,14 @@ export const learningPatternsChartConfig = {
     },
 } satisfies ChartConfig
 
+/**
+ * @deprecated This is test data only. Components now use real user data from session.
+ * Keeping for reference/fallback scenarios only.
+ * 
+ * TODO: Remove once all components are confirmed using real user data
+ */
 export const executiveCoachingInput = {
-    studentId: 'student-123',
+    studentId: 'student-123', // ❌ TEST DATA - Components should use real user.student_id
     subject: 'Mathematics',
     performanceData: [
         { timestamp: '2024-07-07T10:00:00Z', metric: 'time_on_task', value: 15 },
@@ -86,8 +115,14 @@ export const executiveCoachingInput = {
     ],
 };
 
+/**
+ * @deprecated This is test data only. Components now use real user data from session.
+ * Keeping for reference/fallback scenarios only.
+ * 
+ * TODO: Remove once all components are confirmed using real user data
+ */
 export const learningPathInput = {
-    studentId: "student-123",
+    studentId: "student-123", // ❌ TEST DATA - Components should use real user.student_id
     subject: "Math",
     masteryScores: {
       "Algebra": 0.75,

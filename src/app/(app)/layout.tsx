@@ -39,7 +39,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { hasPremiumAccess, loading: subscriptionLoading } = useSubscription();
+  const { hasPremiumAccess, loading: subscriptionLoading, refreshSubscription } = useSubscription();
+
+  // Auto-refresh subscription status every 30 seconds when on protected pages
+  useEffect(() => {
+    if (!user || subscriptionLoading) return;
+    
+    const interval = setInterval(() => {
+      // Only refresh if user doesn't have premium access but might have just paid
+      if (!hasPremiumAccess() && (pathname === '/dashboard' || pathname === '/pricing')) {
+        refreshSubscription();
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [user, subscriptionLoading, hasPremiumAccess, pathname, refreshSubscription]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -53,9 +67,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (!loading && !subscriptionLoading && user) {
       const isOnPricingPage = pathname === '/pricing';
       const isOnAccountPage = pathname === '/account';
+      const isOnFamilyPricingPage = pathname === '/family-pricing';
       
       // Allow access to pricing and account pages without subscription
-      if (!isOnPricingPage && !isOnAccountPage && !hasPremiumAccess()) {
+      if (!isOnPricingPage && !isOnAccountPage && !isOnFamilyPricingPage && !hasPremiumAccess()) {
+        console.log('⚠️ No premium access, redirecting to pricing');
         router.push('/pricing');
       }
     }

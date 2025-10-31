@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase-client';
 
 interface CheckoutButtonProps {
   className?: string;
@@ -17,11 +18,22 @@ export function CheckoutButton({ className, children = 'Subscribe Now' }: Checko
     try {
       setIsLoading(true);
 
-      // Call your API route to create checkout session
+      // Get current Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        alert('Please log in before starting checkout.');
+        router.push('/login');
+        setIsLoading(false);
+        return;
+      }
+
+      // Call API route with Supabase access token
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
       });
 

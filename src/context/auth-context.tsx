@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase, supabaseSessionOnly } from '@/lib/supabase-client';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -12,6 +12,7 @@ interface UserProfile {
   age: number;
   grade: string;
   role: 'student' | 'parent' | 'teacher' | 'admin';
+  student_id?: string;
 }
 
 interface AuthContextType {
@@ -21,6 +22,7 @@ interface AuthContextType {
   signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ error: Error | null; shouldRedirectToPricing?: boolean }>;
   signUp: (email: string, password: string, profile: Omit<UserProfile, 'id' | 'email'>) => Promise<{ error: Error | null; shouldRedirectToPricing?: boolean }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,9 +33,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Fetch user profile from database
-  const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
+  // ⚡ Cache to prevent unnecessary fetches
+  const profileCache = useRef<Map<string, { data: UserProfile; timestamp: number }>>(new Map());
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  // Fetch user profile from database with caching
+  const fetchUserProfile = async (userId: string, forceRefresh = false): Promise<UserProfile | null> => {
     try {
+      // ⚡ Check cache first
+      if (!forceRefresh) {
+        const cached = profileCache.current.get(userId);
+        if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+          return cached.data;
+        }
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -43,6 +57,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         console.error('Error fetching user profile:', error);
         return null;
+      }
+
+      // ⚡ Cache the result
+      if (data) {
+        profileCache.current.set(userId, { data, timestamp: Date.now() });
       }
 
       return data;
@@ -155,8 +174,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
 
+  const refreshProfile = async () => {
+    if (supabaseUser?.id) {
+      const profile = await fetchUserProfile(supabaseUser.id, true);
+      setUser(profile);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, supabaseUser, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, supabaseUser, loading, signIn, signUp, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

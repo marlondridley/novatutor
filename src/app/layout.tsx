@@ -3,6 +3,10 @@ import { Toaster } from "@/components/ui/toaster"
 import './globals.css';
 import 'katex/dist/katex.min.css';
 import { AuthProvider } from '@/context/auth-context';
+import { initSentry } from '@/lib/sentry';
+
+// Initialize Sentry if configured (server-side)
+initSentry();
 
 export const metadata: Metadata = {
   title: 'SuperFocus',
