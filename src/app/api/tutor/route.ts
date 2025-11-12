@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase-server';
+import { createClient } from '@/utils/supabase/server';
 import { connectWithSubjectSpecializedTutor } from '@/ai/flows/subject-specialized-tutor';
 import { rateLimit, rateLimiters } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Pie, PieChart, Line, LineChart, Tooltip as RechartsTooltip, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { Bar, BarChart, CartesianGrid, Pie, PieChart, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import {
   Card,
   CardContent,
@@ -19,8 +19,6 @@ import {
   masteryChartConfig,
   interventionEffectivenessData,
   interventionChartConfig,
-  learningPatternsData,
-  learningPatternsChartConfig,
 } from "@/lib/data";
 import { Info } from "lucide-react";
 import {
@@ -29,6 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { LearningRhythmChart } from "@/components/learning-rhythm-chart";
 
 export function DashboardCharts() {
   return (
@@ -113,58 +112,8 @@ export function DashboardCharts() {
             </ChartContainer>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-             <div className="flex items-center gap-2">
-                <CardTitle>Learning Rhythm</CardTitle>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="h-4 w-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>The goal isn't every day — it's steady effort. You're building great habits!</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            <CardDescription>Your study consistency over the last 7 days.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer config={learningPatternsChartConfig} className="h-[250px] w-full">
-              <LineChart
-                accessibilityLayer
-                data={learningPatternsData}
-                margin={{
-                  left: 12,
-                  right: 12,
-                }}
-              >
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tickFormatter={(value) => value.slice(5)}
-                />
-                <RechartsTooltip cursor={false} content={<ChartTooltipContent />} />
-                 <Line
-                  dataKey="timeSpent"
-                  type="natural"
-                  stroke="var(--color-timeSpent)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                 <Line
-                  dataKey="topicsCovered"
-                  type="natural"
-                  stroke="var(--color-topicsCovered)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
+        {/* Learning Rhythm - Metronome Style */}
+        <LearningRhythmChart />
       </div>
     </TooltipProvider>
   );

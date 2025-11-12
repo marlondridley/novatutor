@@ -50,30 +50,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       console.log('🔄 Querying database for profile:', userId);
-      console.log('🔄 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-      console.log('🔄 Supabase Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
       
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      console.log('🔄 Database query completed, data:', !!data, 'error:', !!error);
-
-      if (error) {
-        console.error('❌ Error fetching user profile:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+      // First check if we have a valid session
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log('🔄 Session check:', sessionData.session ? 'Session exists' : 'No session');
+      
+      if (!sessionData.session) {
+        console.warn('⚠️ No active session, cannot fetch profile');
         return null;
       }
+      
+      // Try query with shorter timeout
+      try {
+        const { data, error } = await Promise.race([
+          supabase.from('profiles').select('*').eq('id', userId).single(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Query timeout')), 5000)
+          )
+        ]) as any;
 
-      // ⚡ Cache the result
-      if (data) {
-        console.log('✅ Profile data received:', data);
-        profileCache.current.set(userId, { data, timestamp: Date.now() });
+        console.log('🔄 Database query completed, data:', !!data, 'error:', !!error);
+        
+        if (error) {
+          console.error('❌ Error fetching user profile:', error);
+          if (error.code === 'PGRST116') {
+            console.error('❌ Profile not found in database');
+          }
+          return null;
+        }
+        
+        if (data) {
+          console.log('✅ Profile data received:', data);
+          profileCache.current.set(userId, { data, timestamp: Date.now() });
+          return data;
+        }
+      } catch (err: any) {
+        console.error('❌ Profile query failed:', err.message);
+        return null;
       }
-
-      return data;
+      
+      return null;
     } catch (error) {
       console.error('❌ Exception fetching user profile:', error);
       return null;
@@ -84,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('🔄 Auth context initializing...');
     
     // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       console.log('🔄 Initial session check:', session ? 'Session exists' : 'No session');
       setSupabaseUser(session?.user ?? null);
       if (session?.user) {
@@ -103,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('🔄 No session, setting loading to false');
         setLoading(false);
       }
-    }).catch((err) => {
+    }).catch((err: any) => {
       console.error('❌ Error getting session:', err);
       setLoading(false);
     });
@@ -111,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
       console.log('🔄 Auth state changed:', _event, session ? 'Session exists' : 'No session');
       setSupabaseUser(session?.user ?? null);
       if (session?.user) {
@@ -162,12 +178,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Please verify your email before logging in. Check your inbox for the confirmation link.');
       }
 
-      // Fetch user profile
+      // Fetch user profile with retry
       console.log('Fetching user profile...');
-      const profile = await fetchUserProfile(data.user.id);
+      let profile = await fetchUserProfile(data.user.id);
+      
+      // Retry once if it fails
+      if (!profile) {
+        console.log('⚠️ Profile fetch failed, retrying after 1s...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        profile = await fetchUserProfile(data.user.id);
+      }
       
       if (!profile) {
-        throw new Error('User profile not found. Please contact support.');
+        // Create a minimal profile from auth data as fallback
+        console.warn('⚠️ Profile still not found, creating fallback profile');
+        profile = {
+          id: data.user.id,
+          email: data.user.email || '',
+          name: data.user.user_metadata?.name || 'Student',
+          age: data.user.user_metadata?.age || 0,
+          grade: data.user.user_metadata?.grade || '',
+          role: data.user.user_metadata?.role || 'student',
+        };
       }
 
       console.log('Profile loaded:', profile);

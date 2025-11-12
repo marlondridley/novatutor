@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { openai } from '@/ai/providers';
+import { openai } from '@/ai/genkit';
 import { getRecentTopics, determineAdaptiveDifficulty } from '@/lib/test-generator-helpers';
 
 export const dynamic = 'force-dynamic';
@@ -99,12 +99,12 @@ export async function POST(request: NextRequest) {
 
           // Step 4: Build context-aware prompt
           const contextNotes = context.recentNotes
-            .filter(note => note.subject === subject || note.topic === topic)
+            .filter((note: any) => note.subject === subject || note.topic === topic)
             .slice(0, 2);
 
           let contextSection = '';
           if (contextNotes.length > 0) {
-            contextSection = `\n\nSTUDENT'S RECENT NOTES:\n${contextNotes.map(note => 
+            contextSection = `\n\nSTUDENT'S RECENT NOTES:\n${contextNotes.map((note: any) => 
               `- ${note.topic}: ${note.summary || note.noteBody.substring(0, 200)}`
             ).join('\n')}`;
           }
@@ -121,21 +121,48 @@ Question complexity: ${modeConfig.complexity}
 
 ${contextSection}
 
-Generate exactly ${count} multiple-choice questions following the Socratic method:
-- Questions should encourage thinking, not just memorization
-- Use age-appropriate language (grades 6-12)
-- Each question has 4 options (A, B, C, D)
-- Only one correct answer
-- Include brief explanations for why the answer is correct
+CRITICAL REQUIREMENTS:
+1. **CONCISE QUESTIONS**: Keep questions SHORT and to the point. NO long word problems.
+   - Get straight to what you're testing
+   - Avoid unnecessary context or story-telling
+   - Example: "What is 3(x + 4)?" NOT "Sarah has 3 bags with x+4 apples each..."
+
+2. **PROGRESSIVE DIFFICULTY**: Build complexity gradually across the ${count} questions:
+   - Question 1: Simple, 1-step problem (recall/basic application)
+   - Questions 2-3: Add ONE new skill or step
+   - Questions 4-5: Combine 2-3 skills or multi-step reasoning
+   - Each question should scaffold on the previous one
+
+3. **STEP-BY-STEP SOLUTIONS**: For the correct answer, provide:
+   - Clear numbered steps showing HOW to solve
+   - Show your work (equations, reasoning)
+   - Final answer with brief explanation
+
+4. **EXPLAIN INCORRECT ANSWERS**: For each wrong option, briefly explain:
+   - Why this answer is wrong
+   - Common misconception it represents
+   - What mistake leads to this answer
 
 Return ONLY valid JSON in this exact format:
 {
   "quiz": [
     {
-      "question": "Clear, specific question text",
+      "question": "Concise, direct question",
       "options": ["Option A", "Option B", "Option C", "Option D"],
-      "answer": "Option A",
-      "explanation": "Why this answer is correct"
+      "answer": "Option B",
+      "solution": {
+        "steps": [
+          "Step 1: First thing to do...",
+          "Step 2: Next...",
+          "Step 3: Therefore..."
+        ],
+        "finalAnswer": "Option B is correct because..."
+      },
+      "wrongAnswers": {
+        "A": "This is wrong because...",
+        "C": "This assumes..., but...",
+        "D": "Common mistake: forgetting to..."
+      }
     }
   ]
 }`;

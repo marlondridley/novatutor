@@ -24,6 +24,7 @@ import {
   FileQuestion,
   Loader2,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
@@ -37,6 +38,7 @@ const navItems = [
   { href: "/tutor", icon: MessageSquare, label: "My Coach" },
   { href: "/learning-path", icon: GitBranch, label: "My Learning Journey" },
   { href: "/journal", icon: BookOpen, label: "Learning Journal" },
+  { href: "/summarizer", icon: Sparkles, label: "Smart Summarizer" },
   { href: "/test-generator", icon: FileQuestion, label: "Test Generator" },
   { href: "/focus", icon: Zap, label: "Stay on Track" },
   { href: "/parent-dashboard", icon: LayoutDashboard, label: "Parent View" },

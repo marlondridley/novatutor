@@ -34,7 +34,14 @@ interface QuizQuestion {
   question: string;
   options: string[];
   answer: string;
-  explanation?: string;
+  explanation?: string; // Fallback for old format
+  solution?: {
+    steps: string[];
+    finalAnswer: string;
+  };
+  wrongAnswers?: {
+    [key: string]: string; // Key is "A", "B", "C", or "D"
+  };
 }
 
 interface QuizResult {
@@ -295,7 +302,7 @@ export function AdaptiveTestGenerator() {
 
             <Button onClick={startGeneration} size="lg" className="w-full">
               <Sparkles className="h-4 w-4 mr-2" />
-              Generate Quiz
+              Let's Test Your Skills ✨
             </Button>
           </CardContent>
         </Card>
@@ -389,11 +396,51 @@ export function AdaptiveTestGenerator() {
                   ))}
                 </RadioGroup>
 
-                {submitted && q.explanation && (
-                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="text-sm text-blue-900 dark:text-blue-100">
-                      <strong>Explanation:</strong> {q.explanation}
-                    </p>
+                {submitted && (
+                  <div className="mt-4 space-y-3">
+                    {/* Step-by-Step Solution for Correct Answer */}
+                    {q.solution && (
+                      <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                        <p className="font-semibold text-green-900 dark:text-green-100 mb-2 flex items-center gap-2">
+                          <Check className="h-4 w-4" />
+                          Step-by-Step Solution
+                        </p>
+                        <ol className="space-y-2 ml-4">
+                          {q.solution.steps && q.solution.steps.map((step: string, stepIdx: number) => (
+                            <li key={stepIdx} className="text-sm text-green-900 dark:text-green-100">
+                              {step}
+                            </li>
+                          ))}
+                        </ol>
+                        {q.solution.finalAnswer && (
+                          <p className="mt-3 text-sm text-green-900 dark:text-green-100 font-medium">
+                            ✅ {q.solution.finalAnswer}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Show Why User's Answer Was Wrong */}
+                    {userAnswers[i] && userAnswers[i] !== q.answer && q.wrongAnswers && (
+                      <div className="p-4 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
+                        <p className="font-semibold text-red-900 dark:text-red-100 mb-2 flex items-center gap-2">
+                          <X className="h-4 w-4" />
+                          Why "{userAnswers[i]}" is incorrect:
+                        </p>
+                        <p className="text-sm text-red-900 dark:text-red-100">
+                          {q.wrongAnswers[userAnswers[i].charAt(0)]}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Fallback: Old explanation format if new format not available */}
+                    {q.explanation && !q.solution && (
+                      <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <p className="text-sm text-blue-900 dark:text-blue-100">
+                          <strong>Explanation:</strong> {q.explanation}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -408,7 +455,7 @@ export function AdaptiveTestGenerator() {
               className="w-full"
               disabled={Object.keys(userAnswers).length !== result.quiz.length}
             >
-              Submit Quiz
+              Lock it in
             </Button>
           ) : (
             <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950 dark:to-blue-950">
@@ -426,7 +473,7 @@ export function AdaptiveTestGenerator() {
                   <div className="flex gap-2 justify-center">
                     <Button onClick={() => setResult(null)} variant="outline">
                       <RefreshCw className="h-4 w-4 mr-2" />
-                      Try Another Quiz
+                      Let's Go Again
                     </Button>
                   </div>
                 </div>

@@ -150,7 +150,7 @@ export async function retryFailedBatch<T, R>(
  */
 export class RateLimiter {
   private limiter: RateLimiterMemory;
-  private concurrencyLimit: pLimit.Limit;
+  private concurrencyLimit: ReturnType<typeof pLimit>;
 
   constructor(
     private maxConcurrent: number,

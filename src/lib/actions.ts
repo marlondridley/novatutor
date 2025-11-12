@@ -62,7 +62,7 @@ import {
     saveConversationContext,
     getConversationContext,
 } from "@/lib/redis";
-import { createClient } from "@/lib/supabase-server";
+import { createClient } from "@/utils/supabase/server";
 import { logger } from "@/lib/logger";
 
 export async function getEducationalAssistantResponse(
@@ -83,16 +83,15 @@ export async function getEducationalAssistantResponse(
 
     // Validate inputs
     const validatedSubject = validateSubject(input.subject);
-    const validatedQuestion = validateTextContent(input.question, 'question', 1, 5000);
+    const validatedQuestion = validateTextContent(input.studentQuestion, 'question', 1, 5000);
     validateNoInjection(validatedQuestion, 'question');
-    const validatedHistory = validateConversationHistory(input.conversationHistory);
+    // Removed conversationHistory validation as it's not part of the current input
 
     // Call AI flow with validated inputs
     const response = await connectWithSubjectSpecializedTutor({
       ...input,
       subject: validatedSubject,
-      question: validatedQuestion,
-      conversationHistory: validatedHistory,
+      studentQuestion: validatedQuestion,
     });
     
     // ✅ SAVE CONVERSATION CONTEXT for follow-ups
@@ -146,11 +145,11 @@ export async function getCoachingIntervention(
     const validatedStudentId = validateStudentId(input.studentId);
     
     // Validate behavioral data array
-    if (!Array.isArray(input.behavioralData) || input.behavioralData.length === 0) {
+    if (!Array.isArray(input.performanceData) || input.performanceData.length === 0) {
       throw new ValidationError('Behavioral data is required', 'behavioralData');
     }
     
-    if (input.behavioralData.length > 100) {
+    if (input.performanceData.length > 100) {
       throw new ValidationError('Too many behavioral data points (max 100)', 'behavioralData');
     }
 
@@ -279,13 +278,10 @@ export async function getHomeworkFeedbackAction(input: HomeworkFeedbackInput) {
     try {
         // Validate inputs
         const validatedSubject = validateSubject(input.subject);
-        const validatedHomework = validateTextContent(input.homeworkText, 'homework', 10, 10000);
-        validateNoInjection(validatedHomework, 'homework');
         
         const response = await getHomeworkFeedback({
             ...input,
             subject: validatedSubject,
-            homeworkText: validatedHomework,
         });
         return { success: true, data: response };
     } catch (error: any) {
@@ -335,11 +331,11 @@ export async function textToSpeechAction(input: TextToSpeechInput) {
 export async function getJokeAction(input: JokeTellerInput) {
     try {
         // Validate inputs
-        const validatedTopic = validateSubject(input.topic);
+        const validatedSubject = validateSubject(input.subject);
         
         const response = await tellJoke({
             ...input,
-            topic: validatedTopic,
+            subject: validatedSubject,
         });
         return { success: true, data: response };
     } catch (error: any) {

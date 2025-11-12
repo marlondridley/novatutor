@@ -4,9 +4,10 @@
 import { useState, useRef, FormEvent, useEffect, ReactNode, useContext, useCallback } from "react";
 import React from "react";
 import Link from "next/link";
-import { SendHorizonal, Sparkles, User, Bot, Camera, BookOpen, FileQuestion, X, Mic, MicOff, Wand2, Volume2, VolumeX, Settings } from "lucide-react";
+import { SendHorizonal, Sparkles, User, Bot, Camera, BookOpen, FileQuestion, X, Mic, MicOff, Wand2, Volume2, VolumeX, Settings, Type, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -151,7 +152,8 @@ export function EducationalAssistantChat() {
         if (value) chunks.push(value);
       }
 
-      const audioBlob = new Blob(chunks, { type: 'audio/mpeg' });
+      const blobParts = chunks as unknown as BlobPart[];
+      const audioBlob = new Blob(blobParts, { type: 'audio/mpeg' });
       const audioUrl = URL.createObjectURL(audioBlob);
 
       if (audioRef.current) {
@@ -535,38 +537,105 @@ export function EducationalAssistantChat() {
         </div>
       </ScrollArea>
 
-      <form
-        ref={formRef}
-        onSubmit={handleSubmit}
-        className="flex items-start gap-4"
-      >
-        <Textarea
-          name="question"
-          placeholder={`Ask your Educational Assistant a ${subject} question...`}
-          className="min-h-[4rem] flex-1"
-          disabled={loading}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              formRef.current?.requestSubmit();
-            }
-          }}
-        />
-        <Button 
-          type="button" 
-          onClick={handleToggleRecording} 
-          disabled={loading} 
-          size="icon" 
-          className={cn("h-16 w-16", isRecording && "bg-red-500 hover:bg-red-600")}
-        >
-          {isRecording ? <MicOff /> : <Mic />}
-          <span className="sr-only">{isRecording ? 'Stop Recording' : 'Start Recording'}</span>
-        </Button>
-        <Button type="submit" disabled={loading} size="icon" className="h-16 w-16">
-          <SendHorizonal />
-          <span className="sr-only">Send</span>
-        </Button>
-      </form>
+      <Tabs defaultValue="text" className="w-full space-y-4">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="text" className="flex items-center gap-2">
+            <Type className="h-4 w-4" />
+            <span className="hidden sm:inline">Type It Out</span>
+          </TabsTrigger>
+          <TabsTrigger value="voice" className="flex items-center gap-2">
+            <Mic className="h-4 w-4" />
+            <span className="hidden sm:inline">Talk It Out 🎤</span>
+          </TabsTrigger>
+          <TabsTrigger value="photo" className="flex items-center gap-2">
+            <Camera className="h-4 w-4" />
+            <span className="hidden sm:inline">Show Me</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Text Input Tab */}
+        <TabsContent value="text" className="space-y-2 m-0">
+          <form ref={formRef} onSubmit={handleSubmit}>
+            <div className="flex items-start gap-4">
+              <Textarea
+                name="question"
+                placeholder={`What would you like help with?`}
+                className="min-h-[4rem] flex-1"
+                disabled={loading}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    formRef.current?.requestSubmit();
+                  }
+                }}
+              />
+              <Button type="submit" disabled={loading} size="icon" className="h-16 w-16">
+                <SendHorizonal />
+                <span className="sr-only">Send</span>
+              </Button>
+            </div>
+          </form>
+        </TabsContent>
+
+        {/* Voice Input Tab */}
+        <TabsContent value="voice" className="space-y-4 m-0">
+          <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl bg-muted/20">
+            {!isRecording ? (
+              <>
+                <p className="text-sm text-muted-foreground mb-4 text-center">
+                  Click below and explain what's confusing you...
+                </p>
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={handleToggleRecording}
+                  disabled={loading}
+                  className="w-full max-w-xs"
+                >
+                  <Mic className="mr-2 h-5 w-5" />
+                  Start Recording
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse" />
+                  <p className="text-sm font-medium">Recording... speak freely!</p>
+                </div>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="destructive"
+                  onClick={handleToggleRecording}
+                  className="w-full max-w-xs"
+                >
+                  <Square className="mr-2 h-5 w-5" />
+                  Stop & Send
+                </Button>
+              </>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Photo/Homework Tab */}
+        <TabsContent value="photo" className="space-y-4 m-0">
+          <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl bg-muted/20">
+            <p className="text-sm text-muted-foreground mb-4 text-center">
+              Show me your homework or problem
+            </p>
+            <Button
+              type="button"
+              size="lg"
+              onClick={() => setIsHomeworkModalOpen(true)}
+              className="w-full max-w-xs"
+              disabled={loading}
+            >
+              <Camera className="mr-2 h-5 w-5" />
+              Take or Upload Photo
+            </Button>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
 
     <Dialog open={isHomeworkModalOpen} onOpenChange={setIsHomeworkModalOpen}>

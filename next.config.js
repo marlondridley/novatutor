@@ -19,7 +19,7 @@ const nextConfig = {
           { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()'
+            value: 'camera=(self), microphone=(self), geolocation=(self)'
           },
         ],
       },
@@ -83,6 +83,11 @@ const nextConfig = {
 
   // ⚡ Performance optimizations
   reactStrictMode: true,
+  
+  // ⚡ Increase body size limit for image uploads
+  serverActions: {
+    bodySizeLimit: '10mb', // Allow up to 10MB for homework images
+  },
   
   // ⚡ Reduce bundle size
   modularizeImports: {

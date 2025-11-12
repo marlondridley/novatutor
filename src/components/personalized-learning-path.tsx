@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Lightbulb, Book, Clock, Loader2, Sparkles } from "lucide-react";
+import { Lightbulb, Book, Clock, Loader2, Sparkles, FileQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,

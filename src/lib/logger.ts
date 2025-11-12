@@ -46,18 +46,22 @@ class Logger {
     if (!this.isProduction) return;
 
     try {
-      // Send to Sentry if configured
-      if (process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN) {
-        const { captureException, captureMessage } = await import('@/lib/sentry');
-        if (entry.error) {
-          captureException(new Error(entry.error.message), {
-            ...entry.context,
-            stack: entry.error.stack,
-          });
-        } else if (entry.level === 'error' || entry.level === 'warn') {
-          captureMessage(entry.message, entry.level, entry.context);
-        }
-      }
+      // NOTE: Sentry integration is optional and requires @sentry/nextjs to be installed
+      // To enable: npm install @sentry/nextjs and set SENTRY_DSN in environment
+      // Commenting out to avoid build warnings when package is not installed
+      
+      // if (process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN) {
+      //   const { captureException, captureMessage } = await import('@/lib/sentry');
+      //   if (entry.error) {
+      //     captureException(new Error(entry.error.message), {
+      //       ...entry.context,
+      //       stack: entry.error.stack,
+      //     });
+      //   } else if (entry.level === 'error' || entry.level === 'warn') {
+      //     const sentryLevel = entry.level === 'warn' ? 'warning' : entry.level;
+      //     captureMessage(entry.message, sentryLevel as 'info' | 'warning' | 'error', entry.context);
+      //   }
+      // }
 
       // TODO: Integrate with Azure Application Insights
       // Example:

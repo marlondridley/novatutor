@@ -50,22 +50,22 @@ export function useIsLandscape() {
 
 // Touch device detection
 export function useIsTouchDevice() {
-  return useMediaQuery({ pointer: 'coarse' });
+  return useMediaQuery({ query: '(pointer: coarse)' });
 }
 
 // Reduced motion for accessibility
 export function usePrefersReducedMotion() {
-  return useMediaQuery({ prefersReducedMotion: 'reduce' });
+  return useMediaQuery({ query: '(prefers-reduced-motion: reduce)' });
 }
 
 // Dark mode preference
 export function usePrefersDarkMode() {
-  return useMediaQuery({ prefers: 'dark' });
+  return useMediaQuery({ query: '(prefers-color-scheme: dark)' });
 }
 
 // High contrast mode
 export function usePrefersHighContrast() {
-  return useMediaQuery({ prefersContrast: 'high' });
+  return useMediaQuery({ query: '(prefers-contrast: more)' });
 }
 
 /**

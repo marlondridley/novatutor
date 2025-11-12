@@ -121,8 +121,8 @@ export async function generateIllustration(
       style: 'natural', // 'natural' or 'vivid'
     });
 
-    const imageUrl = image.data[0]?.url;
-    const revisedPrompt = image.data[0]?.revised_prompt || educationalPrompt;
+    const imageUrl = image.data?.[0]?.url;
+    const revisedPrompt = image.data?.[0]?.revised_prompt || educationalPrompt;
 
     if (!imageUrl) {
       throw new Error('Failed to generate image - no URL returned');

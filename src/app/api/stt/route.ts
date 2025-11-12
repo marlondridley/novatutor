@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase-server';
+import { createClient } from '@/utils/supabase/server';
 import { speechToText } from '@/ai/flows/speech-to-text-flow';
 import { rateLimit, rateLimiters } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';

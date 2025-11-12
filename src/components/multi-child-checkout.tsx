@@ -49,8 +49,8 @@ export function MultiChildCheckout() {
         setProfiles(data || []);
         // Auto-select profiles without active subscriptions
         const freeProfiles = (data || [])
-          .filter(p => p.subscription_status === 'free' || !p.subscription_status)
-          .map(p => p.id);
+          .filter((p: Profile) => p.subscription_status === 'free' || !p.subscription_status)
+          .map((p: Profile) => p.id);
         setSelectedProfiles(new Set(freeProfiles));
       }
     } catch (err: any) {
@@ -71,7 +71,7 @@ export function MultiChildCheckout() {
   }
 
   function selectAll() {
-    setSelectedProfiles(new Set(profiles.map(p => p.id)));
+    setSelectedProfiles(new Set(profiles.map((p: Profile) => p.id)));
   }
 
   function selectNone() {
@@ -80,8 +80,8 @@ export function MultiChildCheckout() {
 
   function selectFreeOnly() {
     const freeProfiles = profiles
-      .filter(p => p.subscription_status === 'free' || !p.subscription_status)
-      .map(p => p.id);
+      .filter((p: Profile) => p.subscription_status === 'free' || !p.subscription_status)
+      .map((p: Profile) => p.id);
     setSelectedProfiles(new Set(freeProfiles));
   }
 

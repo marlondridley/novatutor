@@ -1,6 +1,6 @@
 import { textToSpeechStream } from '@/ai/flows/text-to-speech-flow';
 import { NextRequest } from 'next/server';
-import { createClient } from '@/lib/supabase-server';
+import { createClient } from '@/utils/supabase/server';
 import { rateLimit, rateLimiters } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 

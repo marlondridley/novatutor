@@ -139,7 +139,7 @@ export function PremiumFeature({
             <p className="text-sm text-muted-foreground">
               Unlock {feature} with Premium
             </p>
-            <CheckoutButton size="sm">Upgrade Now</CheckoutButton>
+            <CheckoutButton>Upgrade Now</CheckoutButton>
           </div>
         </div>
       </div>

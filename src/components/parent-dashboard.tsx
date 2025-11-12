@@ -149,11 +149,11 @@ export function ParentDashboard() {
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000);
       } else {
-        setError(data.error || 'Failed to generate report');
+        setError(data.error || 'Oops! We couldn\'t create that report right now. Let\'s try again together.');
       }
     } catch (err: any) {
       console.error('Download report error:', err);
-      setError('Failed to generate report. Please try again.');
+      setError('Oops! We couldn\'t create that report right now. Let\'s try again together.');
     } finally {
       setLoading(false);
     }
@@ -189,11 +189,11 @@ export function ParentDashboard() {
         setSuccess(true);
         setTimeout(() => setSuccess(false), 5000);
       } else {
-        setError(data.error || 'Failed to send email');
+        setError(data.error || 'Hmm, that email didn\'t send. Want to give it another shot?');
       }
     } catch (err: any) {
       console.error('Send email error:', err);
-      setError('Failed to send email. Please try again.');
+      setError('Hmm, that email didn\'t send. Want to give it another shot?');
     } finally {
       setLoading(false);
     }

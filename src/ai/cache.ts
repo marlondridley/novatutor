@@ -52,8 +52,10 @@ class MemoryCache {
   async set<T>(key: string, value: T, ttl: number): Promise<void> {
     // Evict old entries if cache is full
     if (this.cache.size >= this.maxSize) {
-      const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      const firstKey = this.cache.keys().next().value as string | undefined;
+      if (firstKey) {
+        this.cache.delete(firstKey);
+      }
     }
 
     this.cache.set(key, {

@@ -105,7 +105,8 @@ export function TextToSpeechPlayer({ text, autoPlay = false, className = '' }: T
       }
 
       // Combine all chunks into a single blob
-      const audioBlob = new Blob(chunks, { type: 'audio/mpeg' });
+      const blobParts = chunks as unknown as BlobPart[];
+      const audioBlob = new Blob(blobParts, { type: 'audio/mpeg' });
       const audioUrl = URL.createObjectURL(audioBlob);
 
       // Play the audio

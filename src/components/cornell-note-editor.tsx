@@ -295,7 +295,7 @@ export function CornellNoteEditor({ noteId, onSave }: CornellNoteEditorProps) {
             </div>
             <Button onClick={() => handleSave(false)} disabled={saving} size="sm">
               <Save className="h-4 w-4 mr-2" />
-              Save Now
+              Save My Work
             </Button>
           </div>
         </CardContent>

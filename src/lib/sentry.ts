@@ -38,7 +38,7 @@ export function initSentry() {
         environment: process.env.NODE_ENV || 'development',
         tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
         debug: process.env.NODE_ENV === 'development',
-        beforeSend(event, hint) {
+        beforeSend(event: any, hint: any) {
           // Filter out non-error events in production
           if (process.env.NODE_ENV === 'production' && event.level !== 'error') {
             return null;
@@ -84,7 +84,14 @@ export function captureException(error: Error, context?: Record<string, any>) {
  */
 export function captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info', context?: Record<string, any>) {
   if (!sentryInitialized) {
-    logger[level](message, context);
+    // Map Sentry levels to logger methods
+    if (level === 'error') {
+      logger.error(message, undefined, context);
+    } else if (level === 'warning') {
+      logger.warn(message, context);
+    } else {
+      logger.info(message, context);
+    }
     return;
   }
 

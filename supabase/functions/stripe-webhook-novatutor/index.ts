@@ -1,7 +1,11 @@
+// @ts-nocheck
 // @filename: stripe-webhook.ts
+// NOTE: This is a Deno Edge Function for Supabase, not a Next.js file
+// It uses Deno-specific import syntax (npm:, jsr:) and should not be type-checked by Next.js
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import Stripe from "npm:stripe@12.0.0"
 import { createClient } from "npm:@supabase/supabase-js@2"
+import { handlePremiumVoiceUpdate, handlePremiumVoiceCanceled } from "./premium-voice-handler.ts"
 
 // --- ENV VARS ---
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
@@ -72,6 +76,8 @@ Deno.serve(async (request) => {
       case "customer.subscription.created": {
         const sub = event.data.object as Stripe.Subscription
         await handleSubscriptionUpsert(sub.customer as string, sub)
+        // 🎤 Handle Premium Voice add-on
+        await handlePremiumVoiceUpdate(supabase, sub, sub.customer as string)
         break
       }
 
@@ -98,6 +104,8 @@ Deno.serve(async (request) => {
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription
         await handleSubscriptionUpsert(sub.customer as string, sub)
+        // 🎤 Handle Premium Voice add-on
+        await handlePremiumVoiceUpdate(supabase, sub, sub.customer as string)
         break
       }
 
@@ -105,6 +113,8 @@ Deno.serve(async (request) => {
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription
         await updateSubscriptionStatus(sub.customer as string, "canceled", sub)
+        // 🎤 Disable Premium Voice add-on
+        await handlePremiumVoiceCanceled(supabase, sub, sub.customer as string)
         break
       }
 

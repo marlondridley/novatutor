@@ -16,6 +16,8 @@ import type { HomeworkPlannerOutput } from "@/ai/flows/homework-planner-flow";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { AppStateContext } from "@/context/app-state-context";
 import { useAuth } from "@/context/auth-context";
+import { VoiceToTextPremium } from "@/components/voice-to-text-premium";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formSchema = z.object({
   tasks: z.array(z.object({
@@ -32,6 +34,7 @@ export function HomeworkPlanner() {
   const { user, supabaseUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<HomeworkPlannerOutput | null>(null);
+  const [voiceNotes, setVoiceNotes] = useState<string>("");
   const { toast } = useToast();
 
   const form = useForm<HomeworkFormValues>({
@@ -53,10 +56,22 @@ export function HomeworkPlanner() {
     // Get studentId from user profile if available, otherwise use user id
     const studentId = user?.student_id || supabaseUser?.id;
     
+    // If using voice notes, create tasks from the transcript
+    let tasksToSubmit = data.tasks;
+    if (voiceNotes && voiceNotes.trim().length > 0) {
+      // For now, pass voice notes as a single task
+      // In the future, you could use AI to parse this into multiple tasks
+      tasksToSubmit = [{
+        subject: "Voice Notes",
+        topic: voiceNotes,
+        estimatedTime: 30
+      }];
+    }
+    
     const response = await createHomeworkPlanAction({
       studentName: user?.name || "Student",
       studentId: studentId,
-      ...data,
+      tasks: tasksToSubmit,
     });
 
     if (response.success && response.data) {
@@ -75,6 +90,7 @@ export function HomeworkPlanner() {
   const handleCreateNewPlan = () => {
     setPlan(null);
     form.reset();
+    setVoiceNotes("");
     setHasCompletedPlanner(false);
   }
 
@@ -90,6 +106,18 @@ export function HomeworkPlanner() {
         {!plan ? (
             <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                
+                {/* Voice or Type Tabs */}
+                <Tabs defaultValue="type" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="type">✍️ Type It In</TabsTrigger>
+                    <TabsTrigger value="voice">🎤 Talk It Out</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="type" className="space-y-4 mt-4">
+                    <p className="text-sm text-muted-foreground">
+                      Add your tasks below — we'll help you stay focused, not overwhelmed.
+                    </p>
                 <div className="space-y-4">
                 {fields.map((field, index) => (
                     <div key={field.id} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-4 items-start p-4 border rounded-lg bg-background/50">
@@ -158,6 +186,35 @@ export function HomeworkPlanner() {
                         )}
                     </Button>
                 </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="voice" className="space-y-4 mt-4">
+                    <VoiceToTextPremium 
+                      onTranscript={setVoiceNotes}
+                      title="🎙️ Just talk — we'll help organize it"
+                      description="Explain what you're working on, and I'll help turn it into a clear focus plan."
+                      placeholder="Example: 'I have algebra homework on chapter 3, and I need to write an essay for English...'"
+                    />
+                    
+                    {voiceNotes && (
+                      <div className="p-4 bg-accent/10 rounded-lg border">
+                        <p className="text-sm font-medium mb-2">✨ Your notes:</p>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{voiceNotes}</p>
+                        <p className="text-xs text-muted-foreground mt-3">
+                          💡 Tip: Switch to "Type It In" to manually add these as tasks, or let me generate a plan based on what you said.
+                        </p>
+                      </div>
+                    )}
+                    
+                    <Button type="submit" disabled={loading || !voiceNotes} className="w-full">
+                      {loading ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Building your plan...</>
+                      ) : (
+                        <><Sparkles className="mr-2 h-4 w-4" /> Make My Focus Plan</>
+                      )}
+                    </Button>
+                  </TabsContent>
+                </Tabs>
             </form>
             </Form>
         ) : (

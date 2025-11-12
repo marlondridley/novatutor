@@ -37,7 +37,7 @@ export default function AccountForm({ user }: { user: User | null }) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   
   // Subscription status
-  const { subscriptionStatus, isLoading: subscriptionLoading } = useSubscriptionStatus();
+  const { status: subscriptionStatus, loading: subscriptionLoading } = useSubscriptionStatus();
   const { refreshSubscription } = useSubscription();
 
   // Handle payment success redirect

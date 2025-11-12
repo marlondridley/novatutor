@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Shield, CheckCircle2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase-client';
 import Link from 'next/link';
 
-export default function PrivacyAgreementPage() {
+function PrivacyAgreementContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [accepted, setAccepted] = useState(false);
@@ -286,6 +286,22 @@ export default function PrivacyAgreementPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+export default function PrivacyAgreementPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-4xl w-full">
+          <CardContent className="p-6 text-center">
+            <p className="text-muted-foreground">Loading...</p>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <PrivacyAgreementContent />
+    </Suspense>
   );
 }
 

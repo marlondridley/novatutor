@@ -6,10 +6,11 @@ export const dynamic = 'force-dynamic';
 // GET /api/notes/[id] - Get single note
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
+    const { id } = await params;
     
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -20,7 +21,7 @@ export async function GET(
     const { data, error } = await supabase
       .from('cornell_notes')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .single();
 
@@ -42,10 +43,11 @@ export async function GET(
 // PUT /api/notes/[id] - Update note (auto-save)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
+    const { id } = await params;
     
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -68,7 +70,7 @@ export async function PUT(
     const { data, error } = await supabase
       .from('cornell_notes')
       .update(updates)
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .select()
       .single();
@@ -91,10 +93,11 @@ export async function PUT(
 // DELETE /api/notes/[id] - Delete note
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
+    const { id } = await params;
     
     // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -105,7 +108,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('cornell_notes')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id);
 
     if (error) {
