@@ -81,9 +81,9 @@ export function HomeworkPlanner() {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Wand2 /> Homework Planner</CardTitle>
+        <CardTitle className="flex items-center gap-2"><Wand2 /> 🧭 Focus Plan</CardTitle>
         <CardDescription>
-          Let's plan out your homework for today! List your subjects, topics, and how long you think each will take.
+          Let's map your focus time. You decide what to study — I'll help you make it doable.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -152,9 +152,9 @@ export function HomeworkPlanner() {
                     </Button>
                     <Button type="submit" disabled={loading}>
                         {loading ? (
-                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating Plan...</>
+                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Building your plan...</>
                         ) : (
-                            <><Sparkles className="mr-2 h-4 w-4" /> Create My Plan</>
+                            <><Sparkles className="mr-2 h-4 w-4" /> Make My Focus Plan</>
                         )}
                     </Button>
                 </div>
@@ -162,25 +162,25 @@ export function HomeworkPlanner() {
             </Form>
         ) : (
             <div className="space-y-4">
-                <Alert>
-                    <Bot className="h-4 w-4" />
-                    <AlertTitle>Your Homework Plan is Ready!</AlertTitle>
-                    <AlertDescription>{plan.summary}</AlertDescription>
+                <Alert className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+                    <Bot className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <AlertTitle className="text-green-900 dark:text-green-100">✨ Your Focus Plan is Ready!</AlertTitle>
+                    <AlertDescription className="text-green-700 dark:text-green-300">{plan.summary}</AlertDescription>
                 </Alert>
                 <div className="space-y-4">
                     {plan.plan.map((task, index) => (
                         <Card key={index} className="bg-background/50">
                             <CardHeader>
-                                <CardTitle>{task.subject}: {task.topic}</CardTitle>
+                                <CardTitle className="text-base">Today's Focus: {task.subject} — {task.topic}</CardTitle>
                                 <CardDescription>Estimated Time: {task.estimatedTime} minutes</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <p className="italic text-muted-foreground">"{task.encouragement}"</p>
+                                <p className="italic text-sm text-muted-foreground">💬 {task.encouragement}</p>
                             </CardContent>
                         </Card>
                     ))}
                 </div>
-                 <Button onClick={handleCreateNewPlan} variant="outline">Create a New Plan</Button>
+                 <Button onClick={handleCreateNewPlan} variant="outline">Make a New Focus Plan</Button>
             </div>
         )}
       </CardContent>

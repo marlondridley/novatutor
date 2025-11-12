@@ -1,9 +1,10 @@
 
 "use client";
 
-import { useState, useRef, FormEvent, useEffect, ReactNode, useContext } from "react";
+import { useState, useRef, FormEvent, useEffect, ReactNode, useContext, useCallback } from "react";
+import React from "react";
 import Link from "next/link";
-import { SendHorizonal, Sparkles, User, Bot, Camera, BookOpen, FileQuestion, X, Mic, MicOff, Wand2 } from "lucide-react";
+import { SendHorizonal, Sparkles, User, Bot, Camera, BookOpen, FileQuestion, X, Mic, MicOff, Wand2, Volume2, VolumeX, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -72,6 +73,14 @@ export function EducationalAssistantChat() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  
+  // Voice Assistant settings
+  const [autoPlayTTS, setAutoPlayTTS] = useState(false);
+  const [voiceSettings, setVoiceSettings] = useState({ voice: 'alloy' as const, speed: 1.0 });
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [isTTSLoading, setIsTTSLoading] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -79,6 +88,123 @@ export function EducationalAssistantChat() {
     }, 100);
   }
 
+  // Extract text content from ReactNode for TTS
+  const extractTextFromContent = (content: ReactNode): string => {
+    if (typeof content === 'string') {
+      // Remove LaTeX math expressions for cleaner speech
+      return content.replace(/\$\$[\s\S]*?\$\$/g, '[math equation]').replace(/\$[\s\S]*?\$/g, '[math]');
+    }
+    if (React.isValidElement(content) && typeof content.props?.children === 'string') {
+      return extractTextFromContent(content.props.children);
+    }
+    if (Array.isArray(content)) {
+      return content.map(c => extractTextFromContent(c)).join(' ').replace(/\$\$[\s\S]*?\$\$/g, '[math equation]').replace(/\$[\s\S]*?\$/g, '[math]');
+    }
+    return '';
+  };
+
+  // Play TTS for a message
+  const handlePlayTTS = useCallback(async (messageId: string, content: ReactNode) => {
+    if (playingMessageId === messageId) {
+      // Stop if already playing
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+      setPlayingMessageId(null);
+      return;
+    }
+
+    const text = extractTextFromContent(content);
+    if (!text || text.trim().length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No text to speak",
+        description: "This message doesn't contain readable text.",
+      });
+      return;
+    }
+
+    setIsTTSLoading(true);
+    setPlayingMessageId(messageId);
+
+    try {
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.substring(0, 4000), voice: voiceSettings.voice, speed: voiceSettings.speed }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate speech');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const chunks: Uint8Array[] = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
+      }
+
+      const audioBlob = new Blob(chunks, { type: 'audio/mpeg' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      if (audioRef.current) {
+        audioRef.current.src = '';
+        audioRef.current.onended = () => {
+          setPlayingMessageId(null);
+          URL.revokeObjectURL(audioUrl);
+        };
+        audioRef.current.onerror = () => {
+          setPlayingMessageId(null);
+          URL.revokeObjectURL(audioUrl);
+          toast({
+            variant: "destructive",
+            title: "Playback Error",
+            description: "Failed to play audio.",
+          });
+        };
+        audioRef.current.src = audioUrl;
+        await audioRef.current.play();
+      }
+    } catch (err: any) {
+      setPlayingMessageId(null);
+      toast({
+        variant: "destructive",
+        title: "TTS Error",
+        description: err.message || 'Failed to generate speech',
+      });
+    } finally {
+      setIsTTSLoading(false);
+    }
+  }, [voiceSettings, toast, playingMessageId]);
+
+  // Auto-play TTS for new assistant messages
+  useEffect(() => {
+    if (autoPlayTTS && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant' && !playingMessageId) {
+        handlePlayTTS(lastMessage.id, lastMessage.content);
+      }
+    }
+  }, [messages, autoPlayTTS, playingMessageId, handlePlayTTS]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+    };
+  }, []);
+
+  // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -247,6 +373,16 @@ export function EducationalAssistantChat() {
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2 ml-auto">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowVoiceSettings(!showVoiceSettings)}
+              className={autoPlayTTS ? "bg-primary/10" : ""}
+              title="Voice Assistant Settings"
+            >
+              <Settings className="h-4 w-4 mr-2"/>
+              Voice
+            </Button>
             <Button variant="outline" onClick={() => setIsHomeworkModalOpen(true)}>
                 <Camera className="mr-2"/>
                 Homework Helper
@@ -257,6 +393,64 @@ export function EducationalAssistantChat() {
             </Button>
         </div>
       </div>
+
+      {showVoiceSettings && (
+        <div className="mb-4 p-4 border rounded-lg bg-muted/50">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold">Voice Assistant Settings</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowVoiceSettings(false)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="autoPlayTTS"
+                checked={autoPlayTTS}
+                onChange={(e) => setAutoPlayTTS(e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="autoPlayTTS" className="text-sm cursor-pointer">
+                Automatically read assistant responses aloud
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-medium">Voice</label>
+                <Select 
+                  value={voiceSettings.voice} 
+                  onValueChange={(value: any) => setVoiceSettings({ ...voiceSettings, voice: value })}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alloy">Alloy (Neutral)</SelectItem>
+                    <SelectItem value="echo">Echo (Clear)</SelectItem>
+                    <SelectItem value="fable">Fable (Warm)</SelectItem>
+                    <SelectItem value="onyx">Onyx (Deep)</SelectItem>
+                    <SelectItem value="nova">Nova (Energetic)</SelectItem>
+                    <SelectItem value="shimmer">Shimmer (Friendly)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium">Speed: {voiceSettings.speed}x</label>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.1"
+                  value={voiceSettings.speed}
+                  onChange={(e) => setVoiceSettings({ ...voiceSettings, speed: parseFloat(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ScrollArea className="flex-1 mb-4 pr-4" ref={scrollAreaRef}>
         <div className="space-y-6">
@@ -288,10 +482,31 @@ export function EducationalAssistantChat() {
                     : "bg-muted"
                 )}
               >
-                <div>{message.content}</div>
-                 {message.sketch && (
-                    <MathSketch drawing={message.sketch.drawing} caption={message.sketch.caption} />
-                )}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <div>{message.content}</div>
+                    {message.sketch && (
+                      <MathSketch drawing={message.sketch.drawing} caption={message.sketch.caption} />
+                    )}
+                  </div>
+                  {message.role === "assistant" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      onClick={() => handlePlayTTS(message.id, message.content)}
+                      disabled={isTTSLoading}
+                      title={playingMessageId === message.id ? "Stop reading" : "Read aloud"}
+                    >
+                      {playingMessageId === message.id ? (
+                        <VolumeX className="h-4 w-4" />
+                      ) : (
+                        <Volume2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
+                </div>
               </div>
               {message.role === "user" && (
                 <Avatar className="w-8 h-8">

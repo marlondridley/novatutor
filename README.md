@@ -1,6 +1,6 @@
-# SuperTutor - AI-Powered Educational Assistant
+# Study Coach - AI-Powered Learning Companion
 
-An intelligent tutoring platform that provides personalized learning assistance, homework help, executive function coaching, and test preparation using AI technology.
+An intelligent study coaching platform that provides personalized learning assistance, homework help, executive function coaching, and test preparation using AI technology.
 
 ## 🚀 Features
 

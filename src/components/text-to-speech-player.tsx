@@ -115,7 +115,7 @@ export function TextToSpeechPlayer({ text, autoPlay = false, className = '' }: T
         setIsPlaying(true);
       }
     } catch (err: any) {
-      console.error('TTS Error:', err);
+      // Client-side error handling - console.error is acceptable for debugging
       setError(err.message || 'Failed to generate speech');
       setIsPlaying(false);
     } finally {

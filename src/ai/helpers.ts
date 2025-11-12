@@ -33,17 +33,24 @@ export async function generateStructured<T extends z.ZodType>(
   } = options;
 
   return retryWithBackoff(async () => {
+    // Add schema instructions to the system message
+    const jsonSchemaDescription = JSON.stringify(zodToJsonSchema(schema), null, 2);
+    const enhancedMessages = [...messages];
+    
+    // Add schema to the last user message
+    if (enhancedMessages.length > 0) {
+      const lastMessage = enhancedMessages[enhancedMessages.length - 1];
+      if (lastMessage.role === 'user' && typeof lastMessage.content === 'string') {
+        lastMessage.content += `\n\nPlease respond with a valid JSON object matching this schema:\n${jsonSchemaDescription}`;
+      }
+    }
+
     const completion = await openai.chat.completions.create({
       model,
-      messages,
+      messages: enhancedMessages,
       temperature,
       response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'response',
-          strict: true,
-          schema: zodToJsonSchema(schema) as any,
-        },
+        type: 'json_object',
       },
     });
 

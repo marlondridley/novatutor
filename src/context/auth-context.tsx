@@ -44,40 +44,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!forceRefresh) {
         const cached = profileCache.current.get(userId);
         if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+          console.log('🔄 Using cached profile');
           return cached.data;
         }
       }
 
+      console.log('🔄 Querying database for profile:', userId);
+      console.log('🔄 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+      console.log('🔄 Supabase Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
+      console.log('🔄 Database query completed, data:', !!data, 'error:', !!error);
+
       if (error) {
-        console.error('Error fetching user profile:', error);
+        console.error('❌ Error fetching user profile:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
         return null;
       }
 
       // ⚡ Cache the result
       if (data) {
+        console.log('✅ Profile data received:', data);
         profileCache.current.set(userId, { data, timestamp: Date.now() });
       }
 
       return data;
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('❌ Exception fetching user profile:', error);
       return null;
     }
   };
 
   useEffect(() => {
+    console.log('🔄 Auth context initializing...');
+    
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('🔄 Initial session check:', session ? 'Session exists' : 'No session');
       setSupabaseUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserProfile(session.user.id).then(setUser);
+        console.log('🔄 Fetching profile for user:', session.user.id);
+        fetchUserProfile(session.user.id)
+          .then((profile) => {
+            console.log('🔄 Profile loaded:', profile);
+            setUser(profile);
+            setLoading(false);
+          })
+          .catch((err) => {
+            console.error('❌ Error fetching profile:', err);
+            setLoading(false);
+          });
+      } else {
+        console.log('🔄 No session, setting loading to false');
+        setLoading(false);
       }
+    }).catch((err) => {
+      console.error('❌ Error getting session:', err);
       setLoading(false);
     });
 
@@ -85,10 +112,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('🔄 Auth state changed:', _event, session ? 'Session exists' : 'No session');
       setSupabaseUser(session?.user ?? null);
       if (session?.user) {
-        const profile = await fetchUserProfile(session.user.id);
-        setUser(profile);
+        console.log('🔄 Fetching profile after auth change:', session.user.id);
+        try {
+          const profile = await fetchUserProfile(session.user.id);
+          console.log('🔄 Profile loaded after auth change:', profile);
+          setUser(profile);
+        } catch (err) {
+          console.error('❌ Error fetching profile after auth change:', err);
+          setUser(null);
+        }
       } else {
         setUser(null);
       }
@@ -103,20 +138,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Choose storage based on "Remember Me" checkbox
       const authClient = rememberMe ? supabase : supabaseSessionOnly;
       
+      console.log('Attempting to sign in...', email);
+      
       const { data, error } = await authClient.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
-
-      if (data.user) {
-        const profile = await fetchUserProfile(data.user.id);
-        setUser(profile);
+      if (error) {
+        console.error('Supabase auth error:', error);
+        throw error;
       }
 
+      if (!data.user) {
+        throw new Error('No user data returned from Supabase');
+      }
+
+      console.log('User authenticated:', data.user.id);
+      console.log('Email confirmed:', data.user.email_confirmed_at);
+
+      // Check if email is confirmed
+      if (!data.user.email_confirmed_at) {
+        throw new Error('Please verify your email before logging in. Check your inbox for the confirmation link.');
+      }
+
+      // Fetch user profile
+      console.log('Fetching user profile...');
+      const profile = await fetchUserProfile(data.user.id);
+      
+      if (!profile) {
+        throw new Error('User profile not found. Please contact support.');
+      }
+
+      console.log('Profile loaded:', profile);
+      setUser(profile);
+
       return { error: null, shouldRedirectToPricing: false };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sign in error:', error);
       return { error: error as Error, shouldRedirectToPricing: false };
     }

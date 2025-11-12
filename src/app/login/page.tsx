@@ -55,29 +55,50 @@ export default function LoginPage() {
 
   // Redirect if already logged in
   useEffect(() => {
+    console.log('Redirect check - user:', !!user, 'authLoading:', authLoading);
     if (user && !authLoading) {
-      // Check if user has subscription, otherwise redirect to pricing
       const profile = user as any;
-      if (profile.subscription_status === 'active' || profile.subscription_status === 'trialing') {
-        router.push('/dashboard');
-      } else {
-        router.push('/pricing');
-      }
+      console.log('User subscription status:', profile.subscription_status);
+      // Give subscription hook time to load before redirecting
+      setTimeout(() => {
+        if (profile.subscription_status === 'active' || profile.subscription_status === 'trialing') {
+          console.log('✅ Redirecting to dashboard...');
+          window.location.replace('/dashboard');
+        } else {
+          console.log('⚠️ Redirecting to pricing...');
+          window.location.replace('/pricing');
+        }
+      }, 500);
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔵 Login form submitted');
     setLoginError('');
     setLoginLoading(true);
 
-    const { error } = await signIn(loginEmail, loginPassword, rememberMe);
+    try {
+      console.log('🔵 Calling signIn with:', loginEmail);
+      const { error } = await signIn(loginEmail, loginPassword, rememberMe);
+      console.log('🔵 SignIn returned, error:', error);
 
-    if (error) {
-      setLoginError(error.message || 'Login failed');
+      if (error) {
+        console.error('❌ Login error:', error);
+        setLoginError(error.message || 'Login failed. Please check your credentials.');
+        setLoginLoading(false);
+      } else {
+        // Successfully logged in
+        console.log('✅ Login successful, redirecting...');
+        // Wait a moment for subscription hook to initialize, then redirect
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 1000);
+      }
+    } catch (err: any) {
+      console.error('❌ Unexpected login error:', err);
+      setLoginError('An unexpected error occurred. Please try again.');
       setLoginLoading(false);
-    } else {
-      router.push('/dashboard');
     }
   };
 
@@ -131,8 +152,8 @@ export default function LoginPage() {
     }
   };
 
-  // Show loading while auth is initializing or user is logged in
-  if (authLoading || user) {
+  // Show loading only while auth is initializing (not when user exists - let the useEffect handle redirect)
+  if (authLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-background via-muted to-background">
         <Loader2 className="animate-spin h-8 w-8 text-primary" />
@@ -147,9 +168,9 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <Logo />
           </div>
-          <CardTitle className="text-2xl">Welcome to SuperTutor!</CardTitle>
+          <CardTitle className="text-2xl">Welcome to Study Coach!</CardTitle>
           <CardDescription>
-            Sign in or create your account
+            Your personal AI study companion
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -191,12 +212,14 @@ export default function LoginPage() {
                   <Label htmlFor="login-email">Email</Label>
                   <Input
                     id="login-email"
+                    name="email"
                     type="email"
                     placeholder="student@example.com"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     required
                     disabled={loginLoading}
+                    autoComplete="email"
                   />
                 </div>
 
@@ -204,12 +227,14 @@ export default function LoginPage() {
                   <Label htmlFor="login-password">Password</Label>
                   <Input
                     id="login-password"
+                    name="password"
                     type="password"
                     placeholder="Enter your password"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     required
                     disabled={loginLoading}
+                    autoComplete="current-password"
                   />
                 </div>
 
@@ -280,12 +305,14 @@ export default function LoginPage() {
                           <Label htmlFor="reset-email">Email</Label>
                           <Input
                             id="reset-email"
+                            name="reset-email"
                             type="email"
                             placeholder="your@email.com"
                             value={resetPasswordEmail}
                             onChange={(e) => setResetPasswordEmail(e.target.value)}
                             required
                             disabled={resetPasswordLoading}
+                            autoComplete="email"
                           />
                         </div>
 

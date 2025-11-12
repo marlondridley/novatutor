@@ -21,7 +21,6 @@ import { useSubscriptionStatus } from '@/hooks/use-subscription-status';
 import { useSubscription } from '@/hooks/use-subscription';
 import { ManageChildSubscriptions } from '@/components/manage-child-subscriptions';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function AccountForm({ user }: { user: User | null }) {
   const [loading, setLoading] = useState(true);

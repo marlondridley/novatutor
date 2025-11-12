@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -38,6 +40,11 @@ import { z } from "zod";
 const formSchema = z.object({
   subject: z.string().min(1, "Subject is required."),
   learningStyle: z.string().optional(),
+  gradeLevel: z.string().optional(),
+  currentUnderstanding: z.number().min(0).max(100).optional(),
+  specificTopics: z.string().optional(),
+  learningGoals: z.string().optional(),
+  timeAvailable: z.number().min(1).max(40).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -53,6 +60,11 @@ export function PersonalizedLearningPath() {
     defaultValues: {
       subject: "",
       learningStyle: "visual",
+      gradeLevel: "",
+      currentUnderstanding: 50,
+      specificTopics: "",
+      learningGoals: "",
+      timeAvailable: 5,
     },
   });
 
@@ -72,29 +84,37 @@ export function PersonalizedLearningPath() {
     // Get studentId from user profile or use user ID as fallback
     const studentId = user?.student_id || supabaseUser?.id || user?.id || "unknown";
 
-    // Default mastery scores - can be customized later
-    const defaultMasteryScores: Record<string, number> = {
-      "Introduction": 0.5,
-      "Basic Concepts": 0.6,
-      "Intermediate Topics": 0.4,
-      "Advanced Concepts": 0.3,
+    // Use current understanding to adjust mastery scores
+    const understandingScore = (data.currentUnderstanding || 50) / 100;
+    const masteryScores: Record<string, number> = {
+      "Introduction": Math.min(1, understandingScore + 0.2),
+      "Basic Concepts": understandingScore,
+      "Intermediate Topics": Math.max(0, understandingScore - 0.2),
+      "Advanced Concepts": Math.max(0, understandingScore - 0.3),
     };
 
-    // Default intervention effectiveness
-    const defaultInterventionEffectiveness: Record<string, number> = {
-      "Visual Aids": 0.85,
+    // Adjust intervention effectiveness based on learning style
+    const interventionEffectiveness: Record<string, number> = {
+      "Visual Aids": data.learningStyle === "visual" ? 0.95 : 0.85,
       "Practice Problems": 0.92,
-      "Concept Videos": 0.88,
-      "Interactive Exercises": 0.90,
+      "Concept Videos": data.learningStyle === "visual" || data.learningStyle === "auditory" ? 0.92 : 0.85,
+      "Interactive Exercises": data.learningStyle === "kinesthetic" ? 0.95 : 0.90,
+      "Reading Materials": data.learningStyle === "reading" ? 0.95 : 0.80,
     };
 
     const input = {
       studentId,
       subject: data.subject,
-      masteryScores: defaultMasteryScores,
-      interventionEffectiveness: defaultInterventionEffectiveness,
+      masteryScores,
+      interventionEffectiveness,
       learningStyle: data.learningStyle || "visual",
       userId: user?.id || supabaseUser?.id,
+      // Pass additional user inputs
+      gradeLevel: data.gradeLevel,
+      currentUnderstanding: data.currentUnderstanding,
+      specificTopics: data.specificTopics,
+      learningGoals: data.learningGoals,
+      timeAvailable: data.timeAvailable,
     };
 
     const response = await getLearningPath(input);
@@ -119,17 +139,17 @@ export function PersonalizedLearningPath() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Sparkles className="h-5 w-5" />
-          Personalized Learning Path
+          🎯 Your Personalized Learning Journey
         </CardTitle>
         <CardDescription>
-          Generate a custom learning path based on your subject and learning style.
+          We'll build a path based on you — your style, pace, and goals. There's no rush. Just progress.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {!path && (
           <form onSubmit={form.handleSubmit(handleGeneratePath)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="subject">Subject</Label>
+              <Label htmlFor="subject">What subject do you want to explore today?</Label>
               <Input
                 id="subject"
                 placeholder="e.g., Math, Science, English, History"
@@ -141,36 +161,179 @@ export function PersonalizedLearningPath() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="learningStyle">Learning Style (Optional)</Label>
-              <Select
-                value={form.watch("learningStyle")}
-                onValueChange={(value) => form.setValue("learningStyle", value)}
-                disabled={loading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your learning style" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="visual">Visual</SelectItem>
-                  <SelectItem value="auditory">Auditory</SelectItem>
-                  <SelectItem value="kinesthetic">Kinesthetic</SelectItem>
-                  <SelectItem value="reading">Reading/Writing</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="gradeLevel">Choose your grade (or skip if unsure)</Label>
+                <Select
+                  value={form.watch("gradeLevel")}
+                  onValueChange={(value) => form.setValue("gradeLevel", value)}
+                  disabled={loading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Your grade level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="elementary">Elementary (K-5)</SelectItem>
+                    <SelectItem value="middle">Middle School (6-8)</SelectItem>
+                    <SelectItem value="high">High School (9-12)</SelectItem>
+                    <SelectItem value="college">College/University</SelectItem>
+                    <SelectItem value="adult">Adult Learner</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="learningStyle">How do you like to learn?</Label>
+                <Select
+                  value={form.watch("learningStyle")}
+                  onValueChange={(value) => form.setValue("learningStyle", value)}
+                  disabled={loading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Your learning style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="visual">Visual (pictures, diagrams)</SelectItem>
+                    <SelectItem value="auditory">Auditory (listening, discussing)</SelectItem>
+                    <SelectItem value="kinesthetic">Kinesthetic (hands-on, doing)</SelectItem>
+                    <SelectItem value="reading">Reading/Writing</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {loading && (
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground p-4">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                AI is crafting your personalized learning path...
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="currentUnderstanding">
+                  How confident do you feel right now?
+                </Label>
+                <Badge variant="secondary">{form.watch("currentUnderstanding") || 50}%</Badge>
               </div>
-            )}
+              <Slider
+                id="currentUnderstanding"
+                min={0}
+                max={100}
+                step={5}
+                value={[form.watch("currentUnderstanding") || 50]}
+                onValueChange={(value) => form.setValue("currentUnderstanding", value[0])}
+                disabled={loading}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Just starting</span>
+                <span>I could teach this!</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="specificTopics">Which topics challenge you or spark your curiosity?</Label>
+              <Textarea
+                id="specificTopics"
+                placeholder="e.g., Quadratic equations, Photosynthesis, Essay writing..."
+                {...form.register("specificTopics")}
+                disabled={loading}
+                rows={2}
+                className="resize-none"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="learningGoals">What would you love to achieve?</Label>
+              <Textarea
+                id="learningGoals"
+                placeholder="e.g., Feel ready for a test, understand fractions, enjoy reading again..."
+                {...form.register("learningGoals")}
+                disabled={loading}
+                rows={2}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground italic">
+                💡 You don't need to know everything — this just helps me understand how to guide you.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="timeAvailable">
+                  Study Time Available (Optional)
+                </Label>
+                <Badge variant="secondary">{form.watch("timeAvailable") || 5} hrs/week</Badge>
+              </div>
+              <Slider
+                id="timeAvailable"
+                min={1}
+                max={40}
+                step={1}
+                value={[form.watch("timeAvailable") || 5]}
+                onValueChange={(value) => form.setValue("timeAvailable", value[0])}
+                disabled={loading}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                How many hours per week can you dedicate to studying this subject?
+              </p>
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full" 
+              size="lg" 
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Building your path...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Start My Journey
+                </>
+              )}
+            </Button>
           </form>
         )}
         
         {path && (
             <div className="space-y-4">
+                {/* Notes Prompt */}
+                {path.notesPrompt && (
+                  <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                    <CardHeader className="flex-row items-start gap-4">
+                      <FileQuestion className="w-6 h-6 mt-1 text-blue-600 dark:text-blue-400"/>
+                      <div className="flex-1">
+                        <CardTitle className="text-blue-900 dark:text-blue-100">Share Your Materials</CardTitle>
+                        <CardDescription className="text-blue-700 dark:text-blue-300">{path.notesPrompt}</CardDescription>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                )}
+
+                {/* Pre-Assessment */}
+                {path.preAssessment && path.preAssessment.length > 0 && (
+                  <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                        <Sparkles className="w-5 h-5" />
+                        Knowledge Check
+                      </CardTitle>
+                      <CardDescription className="text-amber-700 dark:text-amber-300">
+                        Answer these questions to help us understand your current level
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {path.preAssessment.map((q, idx) => (
+                        <div key={idx} className="p-3 bg-white dark:bg-gray-900 rounded-lg border">
+                          <p className="font-medium text-sm mb-1">Question {idx + 1}: {q.question}</p>
+                          <p className="text-xs text-muted-foreground italic">Purpose: {q.purpose}</p>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Path Rationale */}
                 <Card className="bg-accent/30">
                     <CardHeader className="flex-row items-start gap-4">
                         <Lightbulb className="w-8 h-8 mt-1 text-accent-foreground"/>
@@ -180,16 +343,55 @@ export function PersonalizedLearningPath() {
                         </div>
                     </CardHeader>
                 </Card>
+
+                {/* Learning Path Steps */}
                 <Accordion type="single" collapsible className="w-full">
                     {path.learningPath.map((step, index) => (
                         <AccordionItem value={`item-${index}`} key={index}>
                             <AccordionTrigger className="text-lg font-semibold">{index + 1}. {step.topic}</AccordionTrigger>
                             <AccordionContent className="space-y-4 pl-2">
-                               <p>{step.description}</p>
+                               <p className="text-muted-foreground">{step.description}</p>
+                               
+                               {/* Examples */}
+                               {step.examples && step.examples.length > 0 && (
+                                 <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                                   <h4 className="font-semibold mb-3 flex items-center gap-2 text-green-900 dark:text-green-100">
+                                     <Lightbulb className="w-4 h-4"/> 
+                                     Worked Examples
+                                   </h4>
+                                   <div className="space-y-3">
+                                     {step.examples.map((example, eIdx) => (
+                                       <div key={eIdx} className="bg-white dark:bg-gray-900 p-3 rounded border">
+                                         <p className="text-sm font-medium mb-1">Example {eIdx + 1}:</p>
+                                         <p className="text-sm whitespace-pre-wrap">{example}</p>
+                                       </div>
+                                     ))}
+                                   </div>
+                                 </div>
+                               )}
+
+                               {/* Practice Questions */}
+                               {step.practiceQuestions && step.practiceQuestions.length > 0 && (
+                                 <div className="bg-purple-50 dark:bg-purple-950 p-4 rounded-lg border border-purple-200 dark:border-purple-800">
+                                   <h4 className="font-semibold mb-3 flex items-center gap-2 text-purple-900 dark:text-purple-100">
+                                     <FileQuestion className="w-4 h-4"/> 
+                                     Practice Questions
+                                   </h4>
+                                   <div className="space-y-2">
+                                     {step.practiceQuestions.map((question, qIdx) => (
+                                       <div key={qIdx} className="bg-white dark:bg-gray-900 p-3 rounded border">
+                                         <p className="text-sm">Q{qIdx + 1}: {question}</p>
+                                       </div>
+                                     ))}
+                                   </div>
+                                 </div>
+                               )}
+
                                <div className="flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-muted-foreground" />
                                 <span className="text-sm text-muted-foreground">Estimated time: {step.estimatedTime} minutes</span>
                                </div>
+                               
                                <div>
                                 <h4 className="font-semibold mb-2 flex items-center gap-2"><Book className="w-4 h-4"/> Resources:</h4>
                                 <div className="flex flex-wrap gap-2">

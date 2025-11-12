@@ -37,18 +37,18 @@ export function DashboardCharts() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <CardTitle>Mastery Scores</CardTitle>
+              <CardTitle>Confidence Growth</CardTitle>
               <Tooltip>
                 <TooltipTrigger>
                   <Info className="h-4 w-4 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Mastery scores are calculated based on your performance in quizzes and exercises.</p>
+                  <p>Each bar shows how comfortable you feel in each subject — not a grade, just growth.</p>
                 </TooltipContent>
               </Tooltip>
             </div>
             <CardDescription>
-              Current mastery levels across subjects.
+              How your understanding has grown over time.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -74,18 +74,18 @@ export function DashboardCharts() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <CardTitle>Intervention Effectiveness</CardTitle>
+              <CardTitle>What's Helping You Most</CardTitle>
               <Tooltip>
                 <TooltipTrigger>
                   <Info className="h-4 w-4 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>This chart shows which coaching strategies help you improve the most.</p>
+                  <p>See which learning techniques build your confidence fastest.</p>
                 </TooltipContent>
               </Tooltip>
             </div>
             <CardDescription>
-              Effectiveness of different coaching strategies.
+              Your progress with different study strategies.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -116,17 +116,17 @@ export function DashboardCharts() {
         <Card>
           <CardHeader>
              <div className="flex items-center gap-2">
-                <CardTitle>Learning Patterns</CardTitle>
+                <CardTitle>Learning Rhythm</CardTitle>
                 <Tooltip>
                   <TooltipTrigger>
                     <Info className="h-4 w-4 text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>This tracks how much time you spend studying and how many topics you cover each day.</p>
+                    <p>The goal isn't every day — it's steady effort. You're building great habits!</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
-            <CardDescription>Time spent vs. topics covered over the last 7 days.</CardDescription>
+            <CardDescription>Your study consistency over the last 7 days.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={learningPatternsChartConfig} className="h-[250px] w-full">

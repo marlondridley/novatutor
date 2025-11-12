@@ -1,4 +1,7 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+// ⚠️ This file is kept for backward compatibility
+// New code should use: import { createClient } from '@/utils/supabase/client'
+
+import { createBrowserClient } from '@supabase/ssr';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -9,21 +12,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// ⚡ Single client instance to avoid "Multiple GoTrueClient instances" warning
-// We'll handle "Remember Me" by switching storage dynamically instead of creating multiple clients
-let clientInstance: ReturnType<typeof createSupabaseClient> | null = null;
+// ⚡ Use the official Supabase SSR client for browser
+// This automatically handles cookies correctly
+let clientInstance: ReturnType<typeof createBrowserClient> | null = null;
 
 function getSupabaseClient() {
   if (!clientInstance && typeof window !== 'undefined') {
-    clientInstance = createSupabaseClient(supabaseUrl!, supabaseAnonKey!, {
-      auth: {
-        storage: window.localStorage, // Default to localStorage
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-        storageKey: 'supabase.auth.token',
-      },
-    });
+    clientInstance = createBrowserClient(
+      supabaseUrl!,
+      supabaseAnonKey!
+    );
   }
   return clientInstance;
 }
@@ -31,15 +29,9 @@ function getSupabaseClient() {
 // Single client instance for browser
 export const supabase = typeof window !== 'undefined' 
   ? getSupabaseClient()! 
-  : createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: false,
-        detectSessionInUrl: false,
-      },
-    });
+  : createBrowserClient(supabaseUrl!, supabaseAnonKey!);
 
-// ⚡ DEPRECATED: Use supabase client with storage switching instead
+// ⚡ DEPRECATED: Use supabase client
 // Keeping for backward compatibility but will use same instance
 export const supabaseSessionOnly = supabase;
 
