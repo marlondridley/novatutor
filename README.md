@@ -5,6 +5,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
+**Developed by**: [Marlon Ridley](https://github.com/marlondridley) | **Licensed by**: System Modeling Experts
+
 > **⚠️ PROPRIETARY SOFTWARE NOTICE**: This code is protected by copyright and proprietary license. Viewing is permitted for **portfolio evaluation ONLY** (hiring managers, recruiters, code reviewers). **Unauthorized use, copying, modification, or distribution is strictly prohibited** and will result in legal action. See [LICENSE](LICENSE) and [COPYRIGHT.md](COPYRIGHT.md) for full terms.
 
 > **Award-Winning Educational Platform** - AI-powered homework help with a fun Nintendo Switch-style game controller interface, designed for kids ages 8-18.
@@ -412,7 +414,7 @@ This project is licensed under a **Proprietary License** - see [LICENSE](LICENSE
 - ❌ **Commercial use prohibited**: Requires separate commercial license
 - 💰 **Licensing available**: Contact for commercial licensing options
 
-**For licensing inquiries**: licensing@systemmodeling.com
+**For licensing inquiries**: marlon.ridley@gmail.com
 
 See [COPYRIGHT.md](COPYRIGHT.md) for detailed copyright information and [PROTECTING_YOUR_CODE.md](PROTECTING_YOUR_CODE.md) for protection guidelines.
 
@@ -464,4 +466,5 @@ This project demonstrates:
 [⭐ Star this repo](https://github.com/marlondridley/novatutor) • [🐛 Report Bug](https://github.com/marlondridley/novatutor/issues) • [💡 Request Feature](https://github.com/marlondridley/novatutor/issues)
 
 </div>
+
 

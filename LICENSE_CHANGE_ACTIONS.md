@@ -22,7 +22,7 @@ Before pushing to GitHub, you MUST replace these placeholders:
 ### In LICENSE file:
 ```
 System Modeling Experts          → e.g., "Dridley Technologies LLC"
-licensing@systemmodeling.com     → e.g., "licensing@dridley-tech.com"
+marlon.ridley@gmail.com     → e.g., "licensing@dridley-tech.com"
 systemmodeling.com           → e.g., "dridley-tech.com"
 [your-phone-number]          → e.g., "+1 (555) 123-4567"
 ```
@@ -30,7 +30,7 @@ systemmodeling.com           → e.g., "dridley-tech.com"
 ### In COPYRIGHT.md file:
 ```
 System Modeling Experts
-licensing@systemmodeling.com
+marlon.ridley@gmail.com
 systemmodeling.com
 +1 (555) 123-4567
 123 Main Street, City, State, ZIP
@@ -39,7 +39,7 @@ United States of America
 
 ### In README.md file:
 ```
-licensing@systemmodeling.com → e.g., "licensing@dridley-tech.com"
+marlon.ridley@gmail.com → e.g., "licensing@dridley-tech.com"
 ```
 
 ---
@@ -185,7 +185,7 @@ git add LICENSE COPYRIGHT.md PROTECTING_YOUR_CODE.md README.md LICENSE_CHANGE_AC
 git commit -m "chore: change to proprietary license for commercial protection
 
 - Changed from MIT to Proprietary License
-- All rights reserved to System Modeling Experts
+- All rights reserved to System Modeling Experts & Marlon Ridley
 - Added comprehensive copyright notice (COPYRIGHT.md)
 - Added protection guidelines (PROTECTING_YOUR_CODE.md)
 - Updated README with proprietary warning
@@ -337,6 +337,7 @@ licensing. I can provide a live demo and video walkthrough."
 ---
 
 **You're now protected! Your code is safe from unauthorized use.** 🎉
+
 
 
 

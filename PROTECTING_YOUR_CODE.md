@@ -64,7 +64,7 @@ You need to fill in these placeholders:
 
 ```bash
 System Modeling Experts          → e.g., "Dridley Technologies LLC"
-licensing@systemmodeling.com     → e.g., "licensing@dridley-tech.com"
+marlon.ridley@gmail.com     → e.g., "licensing@dridley-tech.com"
 systemmodeling.com           → e.g., "dridley-tech.com"
 +1 (555) 123-4567          → e.g., "+1 (555) 123-4567"
 123 Main Street, City, State, ZIP      → e.g., "123 Main St, City, State, ZIP"
@@ -82,7 +82,7 @@ Add this to the TOP of every important file:
 
 ```typescript
 /**
- * Copyright (c) 2025 System Modeling Experts. All rights reserved.
+ * Copyright (c) 2025 System Modeling Experts & Marlon Ridley. All rights reserved.
  * 
  * This file is part of BestTutorEver, a proprietary software product.
  * Unauthorized use, copying, modification, or distribution is strictly prohibited.
@@ -90,7 +90,7 @@ Add this to the TOP of every important file:
  * Licensed under Proprietary License.
  * See LICENSE file in the project root for full license information.
  * 
- * For licensing inquiries: licensing@systemmodeling.com
+ * For licensing inquiries: marlon.ridley@gmail.com
  */
 ```
 
@@ -100,7 +100,7 @@ Add this to the TOP of every important file:
 # Create a script to prepend copyright
 $copyright = @"
 /**
- * Copyright (c) 2025 System Modeling Experts. All rights reserved.
+ * Copyright (c) 2025 System Modeling Experts & Marlon Ridley. All rights reserved.
  * Licensed under Proprietary License. Unauthorized use prohibited.
  */
 
@@ -489,6 +489,7 @@ git push origin main
 
 **Last Updated**: December 19, 2025  
 **Version**: 1.0
+
 
 
 

@@ -9,7 +9,7 @@
 ## Copyright Information
 
 ```
-Copyright © 2025 System Modeling Experts. All Rights Reserved.
+Copyright © 2025 System Modeling Experts & Marlon Ridley. All Rights Reserved.
 ```
 
 ---
@@ -109,7 +109,7 @@ To use any part of this software, you must obtain a commercial license from **Sy
 
 **Contact Information:**
 
-- **Email**: licensing@systemmodeling.com
+- **Email**: marlon.ridley@gmail.com
 - **Website**: https://systemmodeling.com.com/licensing
 - **Phone**: +1 (555) 123-4567
 - **Address**: 123 Main Street, City, State, ZIP
@@ -213,7 +213,7 @@ If you have permission to reference this work, use this citation:
 
 ```
 BestTutorEver - AI Learning Platform
-Copyright © 2025 System Modeling Experts
+Copyright © 2025 System Modeling Experts & Marlon Ridley
 https://github.com/marlondridley/novatutor
 Licensed under Proprietary License
 ```
@@ -255,6 +255,7 @@ For legal matters, consult with a qualified intellectual property attorney.
 **Last Updated**: December 19, 2025  
 **Version**: 1.0  
 **Jurisdiction**: United States of America
+
 
 
 
