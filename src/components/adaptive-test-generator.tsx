@@ -23,7 +23,7 @@ import {
   Loader2, 
   Trophy,
   RefreshCw,
-  Brain,
+  GraduationCap,
   Zap,
   Target,
   TrendingUp
@@ -187,7 +187,7 @@ export function AdaptiveTestGenerator() {
       case 'challenge':
         return <Target className="h-4 w-4" />;
       case 'mastery':
-        return <Brain className="h-4 w-4" />;
+        return <GraduationCap className="h-4 w-4" />;
       default:
         return <TrendingUp className="h-4 w-4" />;
     }
@@ -277,7 +277,7 @@ export function AdaptiveTestGenerator() {
                     </SelectItem>
                     <SelectItem value="mastery">
                       <div className="flex items-center gap-2">
-                        <Brain className="h-4 w-4" />
+                        <GraduationCap className="h-4 w-4" />
                         Mastery (Hard)
                       </div>
                     </SelectItem>

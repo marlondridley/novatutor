@@ -38,6 +38,36 @@ yarn-error.log*
 next-env.d.ts
 
 .env*
+!.env.example
 
 # Project IDX (removed)
 .idx/
+
+# Lighthouse reports (generated locally)
+/lighthouse-reports/
+
+# Agent tools (Cursor AI artifacts)
+/agent-tools/
+
+# Terminal logs
+/terminals/
+
+# OS-specific
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+.cache/

@@ -17,7 +17,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-2xl font-bold mb-4">Introduction</h2>
             <p className="text-muted-foreground">
-              At Study Coach, we take your privacy seriously. This Privacy Policy explains how we collect, 
+              At BestTutorEver, we take your privacy seriously. This Privacy Policy explains how we collect, 
               use, disclose, and safeguard your information when you use our service. Please read this 
               privacy policy carefully. If you do not agree with the terms of this privacy policy, 
               please do not access the application.
@@ -86,7 +86,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-2xl font-bold mb-4">Children's Privacy (COPPA Compliance)</h2>
             <p className="text-muted-foreground mb-4">
-              Study Coach is designed for students of all ages, including children under 13. We are committed 
+              BestTutorEver is designed for students of all ages, including children under 13. We are committed 
               to complying with the Children's Online Privacy Protection Act (COPPA). For users under 13:
             </p>
             <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
@@ -154,7 +154,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-2xl font-bold mb-4">International Users</h2>
             <p className="text-muted-foreground">
-              Study Coach is based in the United States. By using our service, you consent to the transfer 
+              BestTutorEver is based in the United States. By using our service, you consent to the transfer 
               of your information to the United States, which may have different data protection laws than 
               your country of residence.
             </p>
@@ -165,7 +165,7 @@ export default function PrivacyPolicyPage() {
             <p className="text-muted-foreground">
               We may update this Privacy Policy from time to time. We will notify you of any significant 
               changes by posting the new policy on this page and updating the "Last updated" date. 
-              Your continued use of Study Coach after changes are posted constitutes acceptance of the 
+              Your continued use of BestTutorEver after changes are posted constitutes acceptance of the 
               updated policy.
             </p>
           </section>
@@ -179,7 +179,7 @@ export default function PrivacyPolicyPage() {
             <div className="mt-4 p-4 bg-muted rounded-lg">
               <p className="text-muted-foreground">
                 <strong>Email:</strong> privacy@studycoach.com<br />
-                <strong>Mail:</strong> Study Coach Privacy Team<br />
+                <strong>Mail:</strong> BestTutorEver Privacy Team<br />
                 [Your Company Address]<br />
                 [City, State ZIP]
               </p>

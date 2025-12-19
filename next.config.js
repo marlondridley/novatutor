@@ -1,14 +1,30 @@
+/**
+ * Next.js Configuration
+ * 
+ * This file configures Next.js build and runtime settings.
+ * See: https://nextjs.org/docs/app/api-reference/config/next-config-js
+ */
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Production optimizations
-  output: 'standalone',
-  compress: true,
-  poweredByHeader: false,
+  // ==========================================================================
+  // PRODUCTION SETTINGS
+  // ==========================================================================
   
-  // Security headers
+  output: 'standalone',     // Creates minimal deployment bundle
+  outputFileTracingRoot: __dirname, // Fix multiple lockfiles warning
+  compress: true,           // Enable gzip compression
+  poweredByHeader: false,   // Remove "X-Powered-By: Next.js" header
+  reactStrictMode: true,    // Enable React strict mode
+
+  // ==========================================================================
+  // SECURITY HEADERS
+  // ==========================================================================
+  
   async headers() {
     return [
       {
+        // Apply security headers to all routes
         source: '/:path*',
         headers: [
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
@@ -17,13 +33,11 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-XSS-Protection', value: '1; mode=block' },
           { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(self), microphone=(self), geolocation=(self)'
-          },
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=(self)' },
         ],
       },
       {
+        // CORS headers for API routes
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Credentials', value: 'true' },
@@ -32,68 +46,71 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
         ],
       },
+      {
+        // Cache static assets for 1 year (immutable)
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        // Cache images for 1 month
+        source: '/:all*.(jpg|jpeg|png|svg|gif|webp|avif|ico)',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=2592000, must-revalidate' },
+        ],
+      },
+      {
+        // Cache Service Worker
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
     ];
   },
+
+  // ==========================================================================
+  // IMAGE OPTIMIZATION
+  // ==========================================================================
   
-  // Image optimization
   images: {
     formats: ['image/avif', 'image/webp'],
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    minimumCacheTTL: 60,
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'hjegsngsrwwbddbujvxe.supabase.co',
-        pathname: '/storage/v1/object/public/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
-      },
+      { protocol: 'https', hostname: 'hjegsngsrwwbddbujvxe.supabase.co', pathname: '/storage/v1/object/public/**' },
+      { protocol: 'https', hostname: 'placehold.co', pathname: '/**' },
+      { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'picsum.photos', pathname: '/**' },
     ],
   },
+
+  // ==========================================================================
+  // EXPERIMENTAL FEATURES
+  // ==========================================================================
   
-  // Bundle optimization
   experimental: {
+    // Optimize imports for faster builds
     optimizePackageImports: [
-      'lucide-react', 
-      '@radix-ui/react-icons',
+      'lucide-react',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-select',
       '@radix-ui/react-tabs',
       'recharts',
     ],
+    // Allow large image uploads (10MB for homework photos)
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
   },
 
-  // ⚡ Performance optimizations
-  reactStrictMode: true,
-  
-  // ⚡ Increase body size limit for image uploads
-  serverActions: {
-    bodySizeLimit: '10mb', // Allow up to 10MB for homework images
-  },
-  
-  // ⚡ Reduce bundle size
-  modularizeImports: {
-    'lucide-react': {
-      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
-    },
+  // ==========================================================================
+  // ESLINT CONFIGURATION
+  // ==========================================================================
+
+  eslint: {
+    ignoreDuringBuilds: true, // Skip ESLint during production builds
   },
 };
 

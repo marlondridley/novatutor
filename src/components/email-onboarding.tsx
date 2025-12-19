@@ -17,7 +17,7 @@ export function WelcomeEmail({ userName }: { userName: string }) {
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
         <Badge className="w-fit mb-2">Welcome Email</Badge>
-        <CardTitle>Welcome to Study Coach, {userName}! 🎓</CardTitle>
+        <CardTitle>Welcome to BestTutorEver, {userName}! 🎓</CardTitle>
         <CardDescription>
           Your personal AI study companion is ready to help you succeed
         </CardDescription>
@@ -27,7 +27,7 @@ export function WelcomeEmail({ userName }: { userName: string }) {
           Hi {userName}!
         </p>
         <p className="text-sm">
-          Welcome to Study Coach! We're excited to be part of your learning journey. 
+          Welcome to BestTutorEver! We're excited to be part of your learning journey. 
           You now have access to your personal AI study companion that's available 24/7 
           to help with homework, test prep, and study skills.
         </p>
@@ -41,7 +41,7 @@ export function WelcomeEmail({ userName }: { userName: string }) {
           <div className="space-y-2 text-sm">
             <div className="flex items-start gap-2">
               <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-              <span><strong>Ask Questions:</strong> Go to "Study Coach" and ask anything about your homework or subjects</span>
+              <span><strong>Ask Questions:</strong> Go to "BestTutorEver" and ask anything about your homework or subjects</span>
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
@@ -61,7 +61,7 @@ export function WelcomeEmail({ userName }: { userName: string }) {
         <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
           <h3 className="font-semibold text-sm mb-2">💡 Pro Tip</h3>
           <p className="text-sm text-muted-foreground">
-            Study Coach uses the Socratic method—it won't just give you answers, 
+            BestTutorEver uses the Socratic method—it won't just give you answers, 
             but will guide you to discover solutions yourself. This helps you truly 
             understand concepts, not just memorize them!
           </p>
@@ -73,7 +73,7 @@ export function WelcomeEmail({ userName }: { userName: string }) {
           </p>
           <p className="text-sm">
             Happy studying!<br />
-            The Study Coach Team
+            The BestTutorEver Team
           </p>
         </div>
       </CardContent>
@@ -99,7 +99,7 @@ export function WeeklyProgressEmail({
         <Badge className="w-fit mb-2">Weekly Email</Badge>
         <CardTitle>📚 This week, {userName} mastered key concepts!</CardTitle>
         <CardDescription>
-          Your weekly progress summary from Study Coach
+          Your weekly progress summary from BestTutorEver
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -107,7 +107,7 @@ export function WeeklyProgressEmail({
           Hi {userName}'s parent!
         </p>
         <p className="text-sm">
-          Here's what {userName} accomplished this week with Study Coach:
+          Here's what {userName} accomplished this week with BestTutorEver:
         </p>
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -140,7 +140,7 @@ export function WeeklyProgressEmail({
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h3 className="font-semibold text-sm mb-2 flex items-center gap-2 text-blue-900">
             <Target className="h-4 w-4" />
-            Study Coach Recommendation
+            BestTutorEver Recommendation
           </h3>
           <p className="text-sm text-blue-800">{weekData.recommendation}</p>
         </div>
@@ -155,7 +155,7 @@ export function WeeklyProgressEmail({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          You're receiving this because you're a Study Coach subscriber. 
+          You're receiving this because you're a BestTutorEver subscriber. 
           Manage email preferences in your account settings.
         </p>
       </CardContent>
@@ -168,7 +168,7 @@ export function OnboardingTipsEmail({ userName, day }: { userName: string; day: 
     {
       day: 1,
       title: "Start with Your Toughest Subject",
-      content: "Don't avoid the hard stuff! Ask Study Coach about the topic you find most challenging. Breaking it down into smaller pieces makes it much easier.",
+      content: "Don't avoid the hard stuff! Ask BestTutorEver about the topic you find most challenging. Breaking it down into smaller pieces makes it much easier.",
       icon: BookOpen,
     },
     {
@@ -180,7 +180,7 @@ export function OnboardingTipsEmail({ userName, day }: { userName: string; day: 
     {
       day: 5,
       title: "Practice Active Learning",
-      content: "Instead of re-reading notes, ask Study Coach to quiz you! Generate practice questions on topics you've studied to test your understanding.",
+      content: "Instead of re-reading notes, ask BestTutorEver to quiz you! Generate practice questions on topics you've studied to test your understanding.",
       icon: Target,
     },
   ];
@@ -199,7 +199,7 @@ export function OnboardingTipsEmail({ userName, day }: { userName: string; day: 
           {tip.title}
         </CardTitle>
         <CardDescription>
-          Quick tip to get the most out of Study Coach
+          Quick tip to get the most out of BestTutorEver
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -212,7 +212,7 @@ export function OnboardingTipsEmail({ userName, day }: { userName: string; day: 
         <div className="bg-accent/30 rounded-lg p-4">
           <p className="text-sm font-medium mb-2">Try it now:</p>
           <Button variant="outline" size="sm" className="w-full">
-            Go to Study Coach →
+            Go to BestTutorEver →
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">

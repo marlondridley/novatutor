@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   BookOpen,
-  Brain,
+  GraduationCap,
   Calendar,
   Clock,
   Download,
@@ -19,7 +19,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase-client';
+import { createClient } from '@/utils/supabase/client';
 
 interface ActivitySummary {
   date: string;
@@ -41,6 +41,7 @@ interface WeeklySummary {
 }
 
 export function ParentDashboard() {
+  const supabase = createClient();
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -100,17 +101,28 @@ export function ParentDashboard() {
 
   useEffect(() => {
     async function getUser() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.warn('Auth error:', userError.message);
+        setError('Unable to load user right now.');
+        setLoading(false);
+        return;
+      }
+
       if (user) {
         setUserId(user.id);
-        // Fetch user profile
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('name')
           .eq('id', user.id)
           .single();
-        if (profile) {
+
+        if (profile?.name) {
           setUserName(profile.name);
+        }
+
+        if (profileError) {
+          console.warn('Profile fetch error:', profileError.message);
         }
       }
       setLoading(false);
@@ -289,7 +301,7 @@ export function ParentDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Questions Asked</CardTitle>
-            <Brain className="h-4 w-4 text-muted-foreground" />
+            <GraduationCap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalQuestions}</div>
@@ -458,7 +470,7 @@ export function ParentDashboard() {
               <CardHeader>
                 <div className="flex items-start gap-3">
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Brain className="h-5 w-5 text-primary" />
+                    <GraduationCap className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1">
                     <CardTitle className="text-lg">{activity.subject} Session</CardTitle>

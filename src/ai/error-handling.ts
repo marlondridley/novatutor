@@ -1,123 +1,112 @@
 /**
- * Comprehensive error handling for AI API calls
+ * AI Error Handling
+ * 
+ * Simple utilities for handling AI API errors with automatic retry.
+ * 
+ * Usage:
+ *   const result = await retryWithBackoff(() => openai.chat.completions.create(...));
  */
 
+// =============================================================================
+// ERROR TYPES
+// =============================================================================
+
+/**
+ * Custom error for AI-related failures.
+ * Includes whether the error is safe to retry.
+ */
 export class AIError extends Error {
   constructor(
     message: string,
     public code: string,
-    public retryable: boolean = false,
-    public statusCode?: number
+    public retryable: boolean = false
   ) {
     super(message);
     this.name = 'AIError';
   }
 }
 
+// =============================================================================
+// ERROR CLASSIFICATION
+// =============================================================================
+
 /**
- * Retry configuration
+ * Convert any API error into a structured AIError.
+ * Determines if the error is safe to retry.
  */
+function classifyError(error: any): AIError {
+  const message = error?.message || String(error);
+  const status = error?.status || error?.statusCode;
+
+  // Rate limit - safe to retry after waiting
+  if (status === 429 || message.includes('rate limit')) {
+    return new AIError('Rate limit exceeded. Please try again in a moment.', 'RATE_LIMIT', true);
+  }
+
+  // Context too long - not retryable, user needs to shorten input
+  if (status === 400 && message.includes('token')) {
+    return new AIError('Input too long. Please shorten your message.', 'TOKEN_LIMIT', false);
+  }
+
+  // Auth failed - not retryable, needs config fix
+  if (status === 401) {
+    return new AIError('API authentication failed. Check your API key.', 'AUTH_FAILED', false);
+  }
+
+  // Server error - safe to retry
+  if (status >= 500 || message.includes('timeout') || message.includes('network')) {
+    return new AIError('AI service temporarily unavailable. Retrying...', 'SERVER_ERROR', true);
+  }
+
+  // Unknown error - not retryable by default
+  return new AIError(`AI request failed: ${message}`, 'UNKNOWN', false);
+}
+
+// =============================================================================
+// RETRY LOGIC
+// =============================================================================
+
 export interface RetryConfig {
-  maxRetries: number;
-  baseDelay: number; // milliseconds
-  maxDelay: number;
-  timeoutMs: number;
+  maxRetries: number;      // How many times to retry
+  baseDelayMs: number;     // Initial delay between retries
+  maxDelayMs: number;      // Maximum delay (cap for exponential backoff)
+  timeoutMs: number;       // Max time to wait for a single request
 }
 
 export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   maxRetries: 3,
-  baseDelay: 1000,
-  maxDelay: 10000,
-  timeoutMs: 60000, // 60 seconds
+  baseDelayMs: 1000,       // 1 second
+  maxDelayMs: 10000,       // 10 seconds max
+  timeoutMs: 60000,        // 60 second timeout
 };
 
 /**
- * Handle API errors with proper categorization
- */
-export function handleAPIError(error: any): AIError {
-  const errorMessage = error?.message || error?.toString() || 'Unknown error';
-  const statusCode = error?.status || error?.statusCode;
-
-  // Rate limit errors
-  if (statusCode === 429 || errorMessage.includes('rate limit')) {
-    return new AIError(
-      'Rate limit exceeded. Please try again in a moment.',
-      'RATE_LIMIT_EXCEEDED',
-      true,
-      429
-    );
-  }
-
-  // Token limit errors
-  if (
-    statusCode === 400 &&
-    (errorMessage.includes('token') || errorMessage.includes('context_length_exceeded'))
-  ) {
-    return new AIError(
-      'Input too long. Please reduce the length and try again.',
-      'TOKEN_LIMIT_EXCEEDED',
-      false,
-      400
-    );
-  }
-
-  // Authentication errors
-  if (statusCode === 401 || errorMessage.includes('authentication') || errorMessage.includes('api key')) {
-    return new AIError(
-      'API authentication failed. Please check your API key configuration.',
-      'AUTH_FAILED',
-      false,
-      401
-    );
-  }
-
-  // Network/timeout errors
-  if (
-    errorMessage.includes('timeout') ||
-    errorMessage.includes('ETIMEDOUT') ||
-    errorMessage.includes('ECONNREFUSED') ||
-    errorMessage.includes('network')
-  ) {
-    return new AIError(
-      'Network error. Please check your connection and try again.',
-      'NETWORK_ERROR',
-      true,
-      503
-    );
-  }
-
-  // Server errors (5xx)
-  if (statusCode && statusCode >= 500) {
-    return new AIError(
-      'AI service temporarily unavailable. Please try again.',
-      'SERVER_ERROR',
-      true,
-      statusCode
-    );
-  }
-
-  // Generic error
-  return new AIError(
-    `AI request failed: ${errorMessage}`,
-    'UNKNOWN_ERROR',
-    false,
-    statusCode
-  );
-}
-
-/**
- * Retry logic with exponential backoff
+ * Execute a function with automatic retry on transient failures.
+ * Uses exponential backoff with jitter to avoid thundering herd.
+ * 
+ * @param fn - Async function to execute
+ * @param config - Retry configuration
+ * @returns The result of fn()
+ * @throws AIError if all retries fail
+ * 
+ * @example
+ * const response = await retryWithBackoff(async () => {
+ *   return openai.chat.completions.create({
+ *     model: 'gpt-4',
+ *     messages: [{ role: 'user', content: 'Hello' }]
+ *   });
+ * });
  */
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   config: RetryConfig = DEFAULT_RETRY_CONFIG
 ): Promise<T> {
-  let lastError: Error | null = null;
-  let delay = config.baseDelay;
+  let lastError: AIError | null = null;
+  let delay = config.baseDelayMs;
 
   for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
     try {
-      // Add timeout to the promise
+      // Race between the function and a timeout
       const result = await Promise.race([
         fn(),
         new Promise<never>((_, reject) =>
@@ -125,63 +114,51 @@ export async function retryWithBackoff<T>(
         ),
       ]);
       return result;
+      
     } catch (error: any) {
-      lastError = error;
-      const aiError = handleAPIError(error);
+      lastError = classifyError(error);
 
-      // Don't retry if error is not retryable
-      if (!aiError.retryable || attempt === config.maxRetries) {
-        throw aiError;
+      // If not retryable or out of retries, throw immediately
+      if (!lastError.retryable || attempt === config.maxRetries) {
+        throw lastError;
       }
 
-      // Log retry attempt
-      console.warn(`AI request failed (attempt ${attempt + 1}/${config.maxRetries + 1}):`, aiError.message);
-
       // Wait before retrying (exponential backoff with jitter)
-      const jitter = Math.random() * 0.3 * delay; // 0-30% jitter
-      const waitTime = Math.min(delay + jitter, config.maxDelay);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-
-      // Increase delay for next attempt
-      delay *= 2;
+      const jitter = Math.random() * delay * 0.3;  // 0-30% random jitter
+      await new Promise(r => setTimeout(r, Math.min(delay + jitter, config.maxDelayMs)));
+      
+      delay *= 2;  // Double delay for next attempt
     }
   }
 
-  throw handleAPIError(lastError);
+  throw lastError;
 }
 
+// =============================================================================
+// FALLBACK RESPONSES
+// =============================================================================
+
 /**
- * Graceful degradation fallback response
+ * Get a graceful fallback response when AI fails completely.
+ * Used to show something helpful instead of a generic error.
  */
 export function getGracefulFallback(flowType: string): any {
   const fallbacks: Record<string, any> = {
     tutor: {
-      response: "I'm having trouble connecting right now. Please try again in a moment, or check your internet connection.",
-      confidence: 0,
+      response: "I'm having trouble connecting. Please try again in a moment.",
     },
     learningPath: {
       path: [],
-      message: "Unable to generate learning path at this time. Please try again later.",
+      message: "Unable to generate learning path. Please try again later.",
     },
     homework: {
-      feedback: "Unable to provide feedback right now. Please save your work and try again shortly.",
-      score: null,
-    },
-    coaching: {
-      intervention: "Service temporarily unavailable. Please try again in a few moments.",
-      techniques: [],
-    },
-    joke: {
-      joke: "Why did the AI go to school? To improve its learning algorithms! 😄 (Sorry, our joke service is taking a break!)",
+      feedback: "Unable to provide feedback. Please save your work and try again.",
     },
     testPrep: {
       questions: [],
-      message: "Test prep service is temporarily unavailable. Please try again later.",
+      message: "Test prep unavailable. Please try again later.",
     },
   };
 
-  return fallbacks[flowType] || {
-    message: "Service temporarily unavailable. Please try again later.",
-  };
+  return fallbacks[flowType] || { message: "Service temporarily unavailable." };
 }
-

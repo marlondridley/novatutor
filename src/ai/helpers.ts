@@ -1,92 +1,97 @@
+/**
+ * AI Helper Functions
+ * 
+ * Simple utilities for calling OpenAI-compatible APIs (OpenAI, DeepSeek, Azure).
+ * These are the core building blocks for all AI features.
+ * 
+ * Usage:
+ *   const response = await generateStructured({ messages, schema });
+ *   const text = await generateText(messages);
+ */
+
 import { openai, DEFAULT_MODEL } from './genkit';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { z } from 'zod';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { retryWithBackoff, DEFAULT_RETRY_CONFIG, RetryConfig } from './error-handling';
-import { trackTokenUsage, extractTokenUsage } from './monitoring';
+import { retryWithBackoff } from './error-handling';
 
-interface GenerateOptions<T extends z.ZodType> {
+// =============================================================================
+// GENERATE STRUCTURED RESPONSE
+// =============================================================================
+
+/**
+ * Generate a JSON response that matches a Zod schema.
+ * 
+ * This is the main function for getting structured data from AI.
+ * It automatically adds schema instructions to the prompt and validates the response.
+ * 
+ * @example
+ * const result = await generateStructured({
+ *   messages: [
+ *     { role: 'system', content: 'You are a helpful tutor.' },
+ *     { role: 'user', content: 'Explain photosynthesis' }
+ *   ],
+ *   schema: z.object({
+ *     explanation: z.string(),
+ *     keyPoints: z.array(z.string())
+ *   })
+ * });
+ */
+export async function generateStructured<T extends z.ZodType>(options: {
   messages: ChatCompletionMessageParam[];
   schema: T;
   model?: string;
   temperature?: number;
-  retryConfig?: RetryConfig;
-  userId?: string; // For usage tracking
-  flowName?: string; // For usage tracking
-}
-
-/**
- * Generate a structured response using OpenAI's structured output feature
- * Includes automatic retry with exponential backoff and usage tracking
- */
-export async function generateStructured<T extends z.ZodType>(
-  options: GenerateOptions<T>
-): Promise<z.infer<T>> {
-  const { 
-    messages, 
-    schema, 
-    model = DEFAULT_MODEL, 
-    temperature = 0.7,
-    retryConfig = DEFAULT_RETRY_CONFIG,
-    userId = 'anonymous',
-    flowName = 'structured-generation'
-  } = options;
+}): Promise<z.infer<T>> {
+  const { messages, schema, model = DEFAULT_MODEL, temperature = 0.7 } = options;
 
   return retryWithBackoff(async () => {
-    // Add schema instructions to the system message
-    const jsonSchemaDescription = JSON.stringify(zodToJsonSchema(schema), null, 2);
+    // Add schema instructions to help the AI understand the expected format
+    const jsonSchema = JSON.stringify(zodToJsonSchema(schema), null, 2);
     const enhancedMessages = [...messages];
     
-    // Add schema to the last user message
-    if (enhancedMessages.length > 0) {
-      const lastMessage = enhancedMessages[enhancedMessages.length - 1];
-      if (lastMessage.role === 'user' && typeof lastMessage.content === 'string') {
-        lastMessage.content += `\n\nPlease respond with a valid JSON object matching this schema:\n${jsonSchemaDescription}`;
-      }
+    // Append schema to the last user message
+    const lastMessage = enhancedMessages[enhancedMessages.length - 1];
+    if (lastMessage?.role === 'user' && typeof lastMessage.content === 'string') {
+      lastMessage.content += `\n\nRespond with valid JSON matching this schema:\n${jsonSchema}`;
     }
 
+    // Call the AI
     const completion = await openai.chat.completions.create({
       model,
       messages: enhancedMessages,
       temperature,
-      response_format: {
-        type: 'json_object',
-      },
+      response_format: { type: 'json_object' },
     });
 
-    // Track token usage
-    const usage = extractTokenUsage(completion);
-    await trackTokenUsage(userId, flowName, model, usage, true);
-
+    // Parse and validate the response
     const responseText = completion.choices[0]?.message?.content || '{}';
-    const parsedResponse = JSON.parse(responseText);
+    const parsed = JSON.parse(responseText);
     
-    // Validate against schema
-    return schema.parse(parsedResponse);
-  }, retryConfig);
+    return schema.parse(parsed);
+  });
 }
 
+// =============================================================================
+// GENERATE TEXT RESPONSE
+// =============================================================================
+
 /**
- * Generate a simple text response
- * Includes automatic retry with exponential backoff and usage tracking
+ * Generate a simple text response from AI.
+ * 
+ * Use this when you just need a string response, not structured data.
+ * 
+ * @example
+ * const joke = await generateText([
+ *   { role: 'system', content: 'You tell educational jokes.' },
+ *   { role: 'user', content: 'Tell me a math joke' }
+ * ]);
  */
 export async function generateText(
   messages: ChatCompletionMessageParam[],
-  options?: {
-    model?: string;
-    temperature?: number;
-    retryConfig?: RetryConfig;
-    userId?: string;
-    flowName?: string;
-  }
+  options?: { model?: string; temperature?: number }
 ): Promise<string> {
-  const { 
-    model = DEFAULT_MODEL, 
-    temperature = 0.7,
-    retryConfig = DEFAULT_RETRY_CONFIG,
-    userId = 'anonymous',
-    flowName = 'text-generation'
-  } = options || {};
+  const { model = DEFAULT_MODEL, temperature = 0.7 } = options || {};
 
   return retryWithBackoff(async () => {
     const completion = await openai.chat.completions.create({
@@ -95,28 +100,36 @@ export async function generateText(
       temperature,
     });
 
-    // Track token usage
-    const usage = extractTokenUsage(completion);
-    await trackTokenUsage(userId, flowName, model, usage, true);
-
     return completion.choices[0]?.message?.content || '';
-  }, retryConfig);
+  });
 }
 
+// =============================================================================
+// IMAGE HANDLING
+// =============================================================================
+
 /**
- * Convert a data URI image to OpenAI format
+ * Format an image for OpenAI's vision API.
+ * 
+ * @param dataUri - Base64 encoded image (e.g., from a file upload)
+ * @returns Object formatted for OpenAI's content array
  */
 export function formatImageContent(dataUri: string) {
   return {
     type: 'image_url' as const,
-    image_url: {
-      url: dataUri,
-    },
+    image_url: { url: dataUri },
   };
 }
 
 /**
- * Build a user message with optional image
+ * Build a user message with optional image attachment.
+ * 
+ * @example
+ * // Text only
+ * const msg = buildUserMessage("What is 2+2?");
+ * 
+ * // With image
+ * const msg = buildUserMessage("Solve this problem", imageDataUri);
  */
 export function buildUserMessage(
   text: string,
@@ -132,9 +145,5 @@ export function buildUserMessage(
     };
   }
   
-  return {
-    role: 'user',
-    content: text,
-  };
+  return { role: 'user', content: text };
 }
-

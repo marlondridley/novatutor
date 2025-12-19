@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useContext } from "react";
 import {
   SidebarProvider,
   Sidebar,
@@ -19,17 +19,18 @@ import {
   LayoutDashboard,
   MessageSquare,
   GitBranch,
-  Zap,
   BookOpen,
   FileQuestion,
   Loader2,
   LogOut,
   Sparkles,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { UserNav } from "@/components/user-nav";
-import { AppStateProvider } from "@/context/app-state-context";
+import { FloatingMicButton } from "@/components/floating-mic-button";
+import { AppStateProvider, AppStateContext } from "@/context/app-state-context";
 import { useAuth } from "@/context/auth-context";
 import { useSubscription } from "@/hooks/use-subscription";
 
@@ -37,14 +38,21 @@ const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Today's Progress" },
   { href: "/tutor", icon: MessageSquare, label: "My Coach" },
   { href: "/learning-path", icon: GitBranch, label: "My Learning Journey" },
-  { href: "/journal", icon: BookOpen, label: "Learning Journal" },
-  { href: "/summarizer", icon: Sparkles, label: "Smart Summarizer" },
+  { href: "/summarizer", icon: Sparkles, label: "Smart Tools" },
   { href: "/test-generator", icon: FileQuestion, label: "Test Generator" },
-  { href: "/focus", icon: Zap, label: "Stay on Track" },
   { href: "/parent-dashboard", icon: LayoutDashboard, label: "Parent View" },
+  { href: "/parent-settings", icon: Shield, label: "Parent Settings" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AppStateProvider>
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </AppStateProvider>
+  );
+}
+
+function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, signOut } = useAuth();
@@ -93,6 +101,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, subscriptionLoading, hasPremiumAccess, pathname, router]);
 
+  // UI is always kid-friendly! No toggle needed.
+
   if (loading) {
     console.log('⏳ App layout loading...');
     return (
@@ -109,8 +119,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   console.log('✅ Rendering app layout for user:', user.name);
   
+  // Dashboard = Full-Screen Controller Mode (no sidebar!)
+  const isControllerMode = pathname === '/dashboard';
+  
+  if (isControllerMode) {
+    return (
+      <div className="min-h-screen">
+        {children}
+      </div>
+    );
+  }
+  
   return (
-    <AppStateProvider>
       <SidebarProvider>
         <Sidebar collapsible="icon">
           <SidebarHeader>
@@ -143,6 +163,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </h1>
             </div>
             <div className="flex items-center gap-2">
+            {/* Mic-first CTA */}
+            <Link href="/tutor" className="hidden md:flex">
+              <Button size="sm" variant="default" className="gap-2">
+                🎤 Talk to Tutor
+              </Button>
+            </Link>
+
               <Button 
                 variant="outline" 
                 size="sm"
@@ -156,8 +183,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </header>
           {children}
+          
+          {/* 🎤 Floating Mic Button - Always visible for kids! */}
+          <FloatingMicButton />
         </SidebarInset>
       </SidebarProvider>
-    </AppStateProvider>
   );
 }

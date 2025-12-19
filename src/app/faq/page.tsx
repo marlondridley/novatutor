@@ -11,7 +11,7 @@ export default function FAQPage() {
             Frequently Asked Questions
           </h1>
           <p className="text-xl text-muted-foreground">
-            Get answers to common questions about Study Coach
+            Get answers to common questions about BestTutorEver
           </p>
         </div>
 
@@ -19,10 +19,10 @@ export default function FAQPage() {
         <Accordion type="single" collapsible className="space-y-4">
           <AccordionItem value="item-1" className="border rounded-lg px-6">
             <AccordionTrigger className="text-left">
-              What is Study Coach?
+              What is BestTutorEver?
             </AccordionTrigger>
             <AccordionContent>
-              Study Coach is an AI-powered learning platform that helps students with homework, test preparation, and study planning. 
+              BestTutorEver is an AI-powered learning platform that helps students with homework, test preparation, and study planning. 
               We use advanced AI technology to provide personalized tutoring across all subjects, helping students learn more effectively 
               through the Socratic teaching method.
             </AccordionContent>
@@ -33,7 +33,7 @@ export default function FAQPage() {
               How does the 7-day free trial work?
             </AccordionTrigger>
             <AccordionContent>
-              Your 7-day free trial gives you full access to all Study Coach features with no credit card required. 
+              Your 7-day free trial gives you full access to all BestTutorEver features with no credit card required. 
               You can explore the platform, get homework help, and try all our features risk-free. After the trial, 
               you can choose to subscribe for $12.99/month. Cancel anytime with no questions asked.
             </AccordionContent>
@@ -41,10 +41,10 @@ export default function FAQPage() {
 
           <AccordionItem value="item-3" className="border rounded-lg px-6">
             <AccordionTrigger className="text-left">
-              What subjects does Study Coach cover?
+              What subjects does BestTutorEver cover?
             </AccordionTrigger>
             <AccordionContent>
-              Study Coach covers all major academic subjects including Mathematics (Algebra, Geometry, Calculus), 
+              BestTutorEver covers all major academic subjects including Mathematics (Algebra, Geometry, Calculus), 
               Sciences (Physics, Chemistry, Biology), English, History, Social Studies, and more. Our AI tutor 
               is trained to help with questions from elementary school through college level.
             </AccordionContent>
@@ -52,10 +52,10 @@ export default function FAQPage() {
 
           <AccordionItem value="item-4" className="border rounded-lg px-6">
             <AccordionTrigger className="text-left">
-              Is Study Coach appropriate for my child's age?
+              Is BestTutorEver appropriate for my child's age?
             </AccordionTrigger>
             <AccordionContent>
-              Study Coach is designed for students from elementary school through college. Our AI adapts its 
+              BestTutorEver is designed for students from elementary school through college. Our AI adapts its 
               explanations to match the student's level and learning pace. The platform is COPPA compliant and 
               provides a safe, ad-free environment. Parents can monitor progress through the parent dashboard.
             </AccordionContent>
@@ -63,10 +63,10 @@ export default function FAQPage() {
 
           <AccordionItem value="item-5" className="border rounded-lg px-6">
             <AccordionTrigger className="text-left">
-              How is Study Coach different from other tutoring services?
+              How is BestTutorEver different from other tutoring services?
             </AccordionTrigger>
             <AccordionContent>
-              Unlike traditional tutoring that costs $40-100+ per hour, Study Coach provides unlimited help 24/7 
+              Unlike traditional tutoring that costs $40-100+ per hour, BestTutorEver provides unlimited help 24/7 
               for just $12.99/month. Our AI tutor uses the Socratic method to guide students to discover answers 
               themselves, promoting deeper understanding. Plus, you get study planning tools, practice quizzes, 
               and parent analytics all in one platform.
@@ -99,10 +99,10 @@ export default function FAQPage() {
 
           <AccordionItem value="item-8" className="border rounded-lg px-6">
             <AccordionTrigger className="text-left">
-              What devices can I use Study Coach on?
+              What devices can I use BestTutorEver on?
             </AccordionTrigger>
             <AccordionContent>
-              Study Coach works on any device with a web browser - computers, tablets, and smartphones. 
+              BestTutorEver works on any device with a web browser - computers, tablets, and smartphones. 
               The platform is fully responsive and optimized for all screen sizes, so students can get 
               help wherever they are, whether at home, school, or on the go.
             </AccordionContent>
@@ -113,7 +113,7 @@ export default function FAQPage() {
               Is my child's data safe and private?
             </AccordionTrigger>
             <AccordionContent>
-              Yes, we take privacy and security very seriously. Study Coach is COPPA compliant and follows strict 
+              Yes, we take privacy and security very seriously. BestTutorEver is COPPA compliant and follows strict 
               data protection guidelines. We never sell student data, show ads, or share information with third parties. 
               All conversations are encrypted and secure. See our <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link> for 
               more details.

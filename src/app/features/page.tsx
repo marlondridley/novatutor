@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CheckCircle2, Brain, Calendar, BookOpen, Target, Users, Shield, Sparkles } from 'lucide-react';
+import { CheckCircle2, GraduationCap, Star, Calendar, BookOpen, Target, Users, Shield, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function FeaturesPage() {
@@ -20,7 +20,7 @@ export default function FeaturesPage() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
           <Card>
             <CardHeader>
-              <Brain className="h-10 w-10 text-primary mb-4" />
+              <GraduationCap className="h-10 w-10 text-primary mb-4" />
               <CardTitle>AI-Powered Tutoring</CardTitle>
               <CardDescription>
                 Get instant help with homework across all subjects using our advanced AI tutor
@@ -180,7 +180,7 @@ export default function FeaturesPage() {
           <Sparkles className="h-12 w-12 text-primary mx-auto mb-4" />
           <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
           <p className="text-lg text-muted-foreground mb-6">
-            Try Study Coach free for 7 days • No credit card required
+            Try BestTutorEver free for 7 days • No credit card required
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
             <Link

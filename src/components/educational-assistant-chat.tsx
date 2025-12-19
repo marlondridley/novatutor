@@ -4,7 +4,7 @@
 import { useState, useRef, FormEvent, useEffect, ReactNode, useContext, useCallback } from "react";
 import React from "react";
 import Link from "next/link";
-import { SendHorizonal, Sparkles, User, Bot, Camera, BookOpen, FileQuestion, X, Mic, MicOff, Wand2, Volume2, VolumeX, Settings, Type, Square } from "lucide-react";
+import { SendHorizonal, Sparkles, User, Bot, Camera, BookOpen, FileQuestion, X, Mic, MicOff, Wand2, Volume2, VolumeX, Settings, Type, Square, Radio, Clock, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,11 +22,15 @@ import { getEducationalAssistantResponse, getJokeAction, speechToTextAction } fr
 import { cn } from "@/lib/utils";
 import type { Message, Subject } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { HomeworkHelper } from "./homework-helper";
 import { TestPrep } from "./test-prep";
 import { BlockMath, InlineMath } from 'react-katex';
 import { MathSketch } from "./math-sketch";
 import { AppStateContext } from "@/context/app-state-context";
+import { useCoachVoiceSession } from "@/hooks/use-coach-voice-session";
+import { VoiceToTextPremium } from "@/components/voice-to-text-premium";
 
 const subjects: Subject[] = ["Math", "Science", "Writing"];
 const JOKE_INTERVAL = 2; // Tell a joke every 2 user messages
@@ -58,12 +62,18 @@ function MathRenderer({ text }: { text: string }) {
   );
 }
 
-export function EducationalAssistantChat() {
+interface EducationalAssistantChatProps {
+  initialQuery?: string;
+  pageContext?: string;
+}
+
+export function EducationalAssistantChat({ initialQuery, pageContext }: EducationalAssistantChatProps = {}) {
   const { hasCompletedPlanner } = useContext(AppStateContext);
   const [messages, setMessages] = useState<Message[]>([]);
   const [subject, setSubject] = useState<Subject>("Math");
   const [loading, setLoading] = useState(false);
   const [userMessageCount, setUserMessageCount] = useState(0);
+  const [currentPageContext] = useState(pageContext || 'Tutor');
   const [isHomeworkModalOpen, setIsHomeworkModalOpen] = useState(false);
   const [isTestPrepModalOpen, setIsTestPrepModalOpen] = useState(false);
   const [lastQuestion, setLastQuestion] = useState("");
@@ -82,6 +92,134 @@ export function EducationalAssistantChat() {
   const [isTTSLoading, setIsTTSLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
+
+  // Wake word & continuous voice session
+  const coachSession = useCoachVoiceSession({
+    wakeWord: 'hey coach',
+    checkInInterval: 5,
+    onWakeWordDetected: () => {
+      console.log('🎤 Wake word detected! Ready for your question...');
+      toast({
+        title: "👋 I'm listening!",
+        description: "Go ahead, ask me anything.",
+      });
+      speak("Yes? How can I help you?", 'question');
+    },
+    onCheckIn: () => {
+      console.log('⏰ 5-minute check-in');
+      const checkInMessages = [
+        "Hey, just checking in! How's it going with your work?",
+        "Quick check — do you need help with anything?",
+        "I'm here if you need me! How's your focus?",
+        "Time for a quick breather — how are you doing?",
+      ];
+      const randomCheckIn = checkInMessages[Math.floor(Math.random() * checkInMessages.length)];
+      
+      const checkInMsg: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `⏰ ${randomCheckIn}`,
+      };
+      setMessages(prev => [...prev, checkInMsg]);
+      speak(randomCheckIn, 'reflection');
+      scrollToBottom();
+    },
+    onTranscript: (text) => {
+      console.log('📝 Voice command captured:', text);
+      // Auto-submit the voice command
+      if (text.trim().length > 10) {
+        handleVoiceCommand(text);
+      }
+    },
+  });
+
+  // Natural speech function for wake word & check-ins
+  const speak = async (text: string, style: 'greeting' | 'question' | 'encouragement' | 'reflection' = 'question') => {
+    console.log('🔊 Attempting to speak:', text, `[${style}]`);
+    
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+
+    // Use natural speech synthesis
+    if ('speechSynthesis' in window) {
+      try {
+        const { speakNaturally } = await import('@/lib/natural-speech');
+        
+        await speakNaturally(
+          text,
+          style,
+          () => console.log('🗣️ Natural speech started'),
+          () => console.log('✅ Natural speech ended')
+        );
+        console.log('✅ Using natural speech');
+        return;
+      } catch (error) {
+        console.warn('⚠️ Natural speech failed:', error);
+      }
+    }
+
+    // Try API TTS (if available)
+    try {
+      console.log('🌐 Trying API TTS...');
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) {
+        console.warn('⚠️ API TTS returned:', response.status);
+        throw new Error('TTS API failed');
+      }
+
+      const audioBlob = await response.blob();
+      console.log('📦 Audio blob received:', audioBlob.size, 'bytes');
+      
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onloadeddata = () => console.log('✅ Audio loaded');
+      audio.onplay = () => console.log('▶️ Audio playing');
+      audio.onended = () => {
+        console.log('✅ Audio ended');
+        URL.revokeObjectURL(audioUrl);
+      };
+      audio.onerror = (e) => console.error('❌ Audio playback error:', e);
+
+      await audio.play();
+      console.log('✅ API TTS playing');
+    } catch (error) {
+      console.error('❌ TTS error:', error);
+      toast({
+        title: "Audio not available",
+        description: "Text-to-speech is not working. Check console for details.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Stop speaking
+  const stopSpeaking = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    console.log('🔇 Coach stopped speaking');
+  };
+
+  // Handle voice command from wake word session
+  const handleVoiceCommand = async (text: string) => {
+    console.log('🎤 Processing voice command:', text);
+    coachSession.resetToWakeWord(); // Reset to listening for wake word
+    await processQuestion(text);
+  };
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -211,6 +349,13 @@ export function EducationalAssistantChat() {
     scrollToBottom();
   }, [messages]);
 
+  // Handle initial query from URL params
+  useEffect(() => {
+    if (initialQuery && messages.length === 0) {
+      processQuestion(initialQuery);
+    }
+  }, [initialQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const addMessage = (role: "user" | "assistant", content: ReactNode, isMath?: boolean, sketch?: Message['sketch']) => {
     const finalContent = isMath && typeof content === 'string' ? <MathRenderer text={content} /> : content;
     const newMessage: Message = {
@@ -248,8 +393,17 @@ export function EducationalAssistantChat() {
 
     const newInteractionCount = userMessageCount + 1;
 
+    // Add page context to the question for better AI understanding
+    const contextualQuestion = currentPageContext !== 'Tutor' 
+      ? `[Page Context: ${currentPageContext}] ${studentQuestion}`
+      : studentQuestion;
+
     // Fetch educational assistant response
-    const response = await getEducationalAssistantResponse({ subject, studentQuestion, homeworkImage });
+    const response = await getEducationalAssistantResponse({ 
+      subject, 
+      studentQuestion: contextualQuestion, 
+      homeworkImage 
+    });
 
     if (response.success && response.data) {
       addMessage("assistant", response.data.tutorResponse, subject === 'Math', response.data.sketch);
@@ -266,7 +420,7 @@ export function EducationalAssistantChat() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: response.error,
+        description: "Failed to get response from tutor",
       });
       setMessages((prev) => prev.slice(0, -1)); // remove user message on error
     }
@@ -277,6 +431,14 @@ export function EducationalAssistantChat() {
     }
   }
 
+  // Handle voice transcript from Speak to Coach button
+  const handleVoiceTranscript = async (text: string) => {
+    if (text.trim().length > 10) {
+      // Auto-submit when enough content is captured
+      setShowVoiceInput(false);
+      await processQuestion(text.trim());
+    }
+  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -313,7 +475,7 @@ export function EducationalAssistantChat() {
                 toast({
                     variant: "destructive",
                     title: "Transcription Failed",
-                    description: response.error,
+                    description: "Could not transcribe audio",
                 });
             }
             setLoading(false);
@@ -357,7 +519,10 @@ export function EducationalAssistantChat() {
     <>
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-4 mb-4 flex-wrap">
-        <h2 className="text-lg font-semibold">Select Subject:</h2>
+        <div className="flex items-center gap-2">
+          <MessageCircle className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">My Coach</h2>
+        </div>
         <Select
           value={subject}
           onValueChange={handleSubjectChange}
@@ -374,7 +539,73 @@ export function EducationalAssistantChat() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          {/* Speak to Coach Button */}
+          <Button
+            onClick={() => setShowVoiceInput(!showVoiceInput)}
+            size="sm"
+            className="gap-2 bg-orange-500 hover:bg-orange-600 text-white border-orange-500 hover:border-orange-600"
+          >
+            <Mic className={`h-4 w-4 ${showVoiceInput ? 'animate-pulse' : ''}`} />
+            {showVoiceInput ? 'Stop Voice' : 'Speak to Coach'}
+          </Button>
+            {/* Wake Word Session Button */}
+            <Button 
+              variant={coachSession.isSessionActive ? "default" : "outline"}
+              size="sm"
+              onClick={() => coachSession.isSessionActive ? coachSession.stopSession() : coachSession.startSession()}
+              className={coachSession.isSessionActive ? "bg-primary animate-pulse" : ""}
+              title={coachSession.isSessionActive ? "Stop listening for 'Hey Coach'" : "Start wake word session"}
+            >
+              {coachSession.isSessionActive ? (
+                <><Radio className="h-4 w-4 mr-2 animate-ping"/> Live Session</>
+              ) : (
+                <><Mic className="h-4 w-4 mr-2"/> Wake Word</>
+              )}
+            </Button>
+
+            {coachSession.isSessionActive && (
+              <Badge variant="secondary" className="animate-pulse">
+                {coachSession.isListeningForWakeWord && <><Mic className="h-3 w-3 mr-1"/> Say "Hey Coach"</>}
+                {coachSession.isListeningForCommand && <><Radio className="h-3 w-3 mr-1"/> Listening...</>}
+              </Badge>
+            )}
+
+            {/* Debug: Show what's being heard */}
+            {coachSession.isSessionActive && coachSession.transcript && (
+              <Card className="absolute top-16 right-0 w-80 z-50 shadow-lg">
+                <CardContent className="p-3">
+                  <p className="text-xs font-mono text-muted-foreground mb-1">
+                    🎤 Hearing: {coachSession.listening ? '(active)' : '(paused)'}
+                  </p>
+                  <p className="text-sm font-mono bg-muted p-2 rounded">
+                    "{coachSession.transcript}"
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {coachSession.isListeningForWakeWord && '⏳ Waiting for "Hey Coach"...'}
+                    {coachSession.isListeningForCommand && '✅ Capturing your question...'}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {coachSession.isSessionActive && coachSession.lastCheckInTime && (
+              <Badge variant="outline" className="text-xs">
+                <Clock className="h-3 w-3 mr-1"/>
+                Next check-in: {Math.ceil((5 * 60 * 1000 - (Date.now() - coachSession.lastCheckInTime.getTime())) / 1000 / 60)}min
+              </Badge>
+            )}
+
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => speak("Testing audio. Can you hear me?")}
+              title="Test your speakers"
+            >
+              <Volume2 className="h-4 w-4 mr-2"/>
+              Test Audio
+            </Button>
+
             <Button 
               variant="outline" 
               size="sm"
@@ -395,6 +626,19 @@ export function EducationalAssistantChat() {
             </Button>
         </div>
       </div>
+
+      {/* Speak to Coach Voice Input */}
+      {showVoiceInput && (
+        <div className="mb-4">
+          <VoiceToTextPremium
+            onTranscript={handleVoiceTranscript}
+            title="🎙️ Just talk — I'm listening"
+            description="Click 'Start Recording' to begin. Ask me anything about your subject!"
+            placeholder="Your question will appear here as you speak..."
+            autoStart={true}
+          />
+        </div>
+      )}
 
       {showVoiceSettings && (
         <div className="mb-4 p-4 border rounded-lg bg-muted/50">

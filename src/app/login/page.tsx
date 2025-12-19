@@ -168,7 +168,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <Logo />
           </div>
-          <CardTitle className="text-2xl">Welcome to Study Coach!</CardTitle>
+          <CardTitle className="text-2xl">Welcome to BestTutorEver!</CardTitle>
           <CardDescription>
             Your personal AI study companion
           </CardDescription>

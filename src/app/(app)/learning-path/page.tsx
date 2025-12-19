@@ -1,3 +1,5 @@
+ "use client";
+
 import { PersonalizedLearningPath } from "@/components/personalized-learning-path";
 
 export default function LearningPathPage() {

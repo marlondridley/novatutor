@@ -18,7 +18,7 @@ const blogPosts = [
   {
     id: 2,
     title: "How AI is Revolutionizing Education: A Parent's Guide",
-    excerpt: "Learn how artificial intelligence tools like Study Coach are transforming the way students learn and how parents can support this new approach.",
+    excerpt: "Learn how artificial intelligence tools like BestTutorEver are transforming the way students learn and how parents can support this new approach.",
     author: "Michael Chen",
     date: "October 28, 2025",
     category: "AI & Education",
@@ -38,7 +38,7 @@ const blogPosts = [
   {
     id: 4,
     title: "The Socratic Method: Why We Don't Just Give Answers",
-    excerpt: "Understanding the teaching philosophy behind Study Coach and why guiding students to discover answers leads to deeper learning.",
+    excerpt: "Understanding the teaching philosophy behind BestTutorEver and why guiding students to discover answers leads to deeper learning.",
     author: "Dr. Emily Roberts",
     date: "October 20, 2025",
     category: "Teaching Methods",
@@ -77,7 +77,7 @@ export default function BlogPage() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl mb-4">
-            Study Coach Blog
+            BestTutorEver Blog
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Tips, insights, and strategies to help students succeed
@@ -166,7 +166,7 @@ export default function BlogPage() {
               <BookOpen className="h-12 w-12 text-primary mx-auto mb-4" />
               <CardTitle className="text-2xl">Stay Updated</CardTitle>
               <CardDescription className="text-base">
-                Get the latest study tips, educational insights, and Study Coach updates delivered to your inbox
+                Get the latest study tips, educational insights, and BestTutorEver updates delivered to your inbox
               </CardDescription>
             </CardHeader>
             <CardContent>

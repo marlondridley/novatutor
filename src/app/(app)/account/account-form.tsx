@@ -1,8 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase-client';
+import { createClient } from '@/utils/supabase/client';
 import { type User } from '@supabase/supabase-js';
+
+// Create Supabase client
+const supabase = createClient();
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -167,29 +170,9 @@ export default function AccountForm({ user }: { user: User | null }) {
     }
   };
   
-  const handleManageSubscription = async () => {
-    try {
-      setError('');
-      // Create Stripe Customer Portal session
-      const response = await fetch('/api/create-portal-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to open customer portal');
-      }
-      
-      // Redirect to Stripe Customer Portal
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch (error: any) {
-      console.error('Portal session error:', error);
-      setError(error.message || 'Failed to open subscription management');
-    }
+  // Direct link to Stripe Customer Portal - simple and reliable
+  const handleManageSubscription = () => {
+    window.location.href = 'https://billing.stripe.com/p/login/fZu3cv0Gh4VHaUNblJ2VG00';
   };
   
   const getStatusBadge = (status: string) => {
@@ -250,7 +233,7 @@ export default function AccountForm({ user }: { user: User | null }) {
             Subscription
           </CardTitle>
           <CardDescription>
-            Manage your NovaHelper subscription and billing
+            Manage your BestTutorEver subscription and billing
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

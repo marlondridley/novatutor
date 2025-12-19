@@ -9,7 +9,7 @@ export default function AboutPage() {
         {/* Header */}
         <div className="text-center mb-16">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl mb-4">
-            About Study Coach
+            About BestTutorEver
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
             Empowering students to learn better, faster, and with confidence
@@ -26,7 +26,7 @@ export default function AboutPage() {
                   <h2 className="text-2xl font-bold mb-4">Our Mission</h2>
                   <p className="text-lg text-muted-foreground leading-relaxed">
                     We believe every student deserves access to quality education and personalized support. 
-                    Study Coach was created to make learning more accessible, affordable, and effective for 
+                    BestTutorEver was created to make learning more accessible, affordable, and effective for 
                     students everywhere. By combining advanced AI technology with proven teaching methods, 
                     we're helping students build confidence, master difficult concepts, and achieve their 
                     academic goals.
@@ -42,7 +42,7 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold mb-6">Our Story</h2>
           <div className="prose prose-lg max-w-none text-muted-foreground space-y-4">
             <p>
-              Study Coach was born from a simple observation: traditional tutoring is expensive, scheduling 
+              BestTutorEver was born from a simple observation: traditional tutoring is expensive, scheduling 
               is difficult, and students often need help right when they're stuck on a problem—not days later 
               when a tutor is available.
             </p>
@@ -53,11 +53,11 @@ export default function AboutPage() {
             <p>
               By leveraging cutting-edge AI technology and the time-tested Socratic teaching method, we created 
               a platform that provides instant, personalized tutoring at a fraction of the cost of traditional 
-              services. Study Coach is available 24/7, covers all subjects, and adapts to each student's 
+              services. BestTutorEver is available 24/7, covers all subjects, and adapts to each student's 
               learning style and pace.
             </p>
             <p>
-              Today, thousands of students use Study Coach to get homework help, prepare for tests, and build 
+              Today, thousands of students use BestTutorEver to get homework help, prepare for tests, and build 
               stronger study habits. We're proud to be making quality education support accessible to families 
               everywhere.
             </p>
@@ -88,7 +88,7 @@ export default function AboutPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  Quality education support shouldn't be a luxury. We're committed to keeping Study Coach 
+                  Quality education support shouldn't be a luxury. We're committed to keeping BestTutorEver 
                   affordable so every student can get the help they need to succeed.
                 </p>
               </CardContent>

@@ -1,429 +1,213 @@
 /**
- * Upstash Redis Configuration for SuperTutor
- * Provides: Rate Limiting, Caching, Session Storage, Cost Tracking
+ * Redis Configuration (Upstash)
+ * 
+ * This file provides:
+ * 1. Rate limiting - Prevents API abuse
+ * 2. Caching - Saves money by reusing AI responses
+ * 
+ * If Redis credentials are missing, the app works without rate limiting.
+ * 
+ * Setup:
+ *   1. Create account at upstash.com
+ *   2. Add to .env.local:
+ *      UPSTASH_REDIS_REST_URL=https://xxx.upstash.io
+ *      UPSTASH_REDIS_REST_TOKEN=xxx
  */
 
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
 
-// ===========================================
-// REDIS CLIENT INITIALIZATION
-// ===========================================
+// =============================================================================
+// REDIS CLIENT
+// =============================================================================
 
 /**
- * Initialize Redis client with REST API
- * Falls back gracefully if credentials missing
+ * Create Redis client. Returns null if credentials missing (graceful fallback).
  */
-function createRedisClient() {
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    console.warn('⚠️ Redis credentials not found. Rate limiting and caching disabled.');
+function createRedisClient(): Redis | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  
+  if (!url || !token) {
+    console.warn('[Redis] Credentials not found. Rate limiting disabled.');
     return null;
   }
 
   try {
-    const client = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
-    
-    console.log('✅ Redis connected (Upstash REST API)');
-    return client;
+    return new Redis({ url, token });
   } catch (error) {
-    console.error('❌ Redis connection failed:', error);
+    console.error('[Redis] Connection failed:', error);
     return null;
   }
 }
 
 export const redis = createRedisClient();
 
-// ===========================================
-// RATE LIMITERS (Prevent Abuse)
-// ===========================================
+// =============================================================================
+// RATE LIMITERS
+// =============================================================================
 
 /**
- * Educational AI rate limits optimized for student usage patterns
+ * Rate limiters to prevent abuse and control costs.
+ * 
+ * We only need 3 categories:
+ * - ai: General AI calls (tutor, quiz, etc.) - 30/hour
+ * - media: Expensive operations (TTS, STT, images) - 20/day
+ * - auth: Login attempts - 10/minute (security)
  */
-export const rateLimits = redis ? {
-  // 🎓 Subject Tutoring: 30 questions per hour (main feature, generous)
-  tutor: new Ratelimit({
+export const rateLimiters = redis ? {
+  // General AI operations (chat, quiz generation, etc.)
+  ai: new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(30, '1 h'),
-    analytics: true,
-    prefix: 'ratelimit:tutor',
+    prefix: 'rl:ai',
   }),
 
-  // 📝 Homework Feedback: 10 uploads per hour (prevent spam, expensive vision API)
-  homework: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(10, '1 h'),
-    analytics: true,
-    prefix: 'ratelimit:homework',
-  }),
-
-  // 🗓️ Homework Planning: 5 plans per day (expensive, typically done once daily)
-  planner: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(5, '1 d'),
-    analytics: true,
-    prefix: 'ratelimit:planner',
-  }),
-
-  // 🎯 Learning Paths: 10 per day (very expensive, rarely needs regeneration)
-  learningPath: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(10, '1 d'),
-    analytics: true,
-    prefix: 'ratelimit:path',
-  }),
-
-  // 📊 Test Prep: 20 quizzes per hour (moderate cost, common use case)
-  testPrep: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(20, '1 h'),
-    analytics: true,
-    prefix: 'ratelimit:quiz',
-  }),
-
-  // 🔊 Text-to-Speech: 50 per day (VERY expensive - $15 per 1M chars)
-  tts: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(50, '1 d'),
-    analytics: true,
-    prefix: 'ratelimit:tts',
-  }),
-
-  // 🧠 Executive Function: 20 coaching sessions per day
-  coaching: new Ratelimit({
+  // Expensive media operations (TTS costs $15/1M chars, images cost $0.04 each)
+  media: new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(20, '1 d'),
-    analytics: true,
-    prefix: 'ratelimit:coaching',
+    prefix: 'rl:media',
   }),
 
-  // 🎨 Image Generation: 5 per day (EXTREMELY expensive - $0.04-0.08 per image)
-  imageGen: new Ratelimit({
+  // Authentication - prevent brute force
+  auth: new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(5, '1 d'),
-    analytics: true,
-    prefix: 'ratelimit:dalle',
-  }),
-
-  // 🎤 Speech-to-Text: 30 per day (moderate cost, $0.006/minute)
-  stt: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(30, '1 d'),
-    analytics: true,
-    prefix: 'ratelimit:whisper',
-  }),
-
-  // 😄 Jokes: 50 per hour (cheap, fun feature)
-  joke: new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(50, '1 h'),
-    analytics: true,
-    prefix: 'ratelimit:joke',
+    limiter: Ratelimit.slidingWindow(10, '1 m'),
+    prefix: 'rl:auth',
   }),
 } : null;
 
-// ===========================================
-// RATE LIMIT CHECKER HELPER
-// ===========================================
+// =============================================================================
+// RATE LIMIT HELPER
+// =============================================================================
 
 export interface RateLimitResult {
   success: boolean;
   remaining: number;
-  reset: number;
-  limit: number;
+  reset: number;  // Timestamp when limit resets
 }
 
 /**
- * Check rate limit for a specific flow
- * Returns detailed info about remaining requests
+ * Check if a user has exceeded their rate limit.
+ * 
+ * @param type - Which limiter to check ('ai', 'media', or 'auth')
+ * @param userId - Unique identifier for the user
+ * @returns Object with success=true if allowed, remaining count, and reset time
+ * 
+ * @example
+ * const result = await checkRateLimit('ai', user.id);
+ * if (!result.success) {
+ *   return { error: 'Too many requests. Try again later.' };
+ * }
  */
 export async function checkRateLimit(
-  limitType: keyof NonNullable<typeof rateLimits>,
+  type: 'ai' | 'media' | 'auth',
   userId: string
 ): Promise<RateLimitResult> {
-  if (!rateLimits) {
-    // No Redis = no rate limiting, allow all requests
-    return { success: true, remaining: 999, reset: 0, limit: 999 };
+  // If no Redis, allow everything (development mode)
+  if (!rateLimiters) {
+    return { success: true, remaining: 999, reset: 0 };
   }
 
-  const { success, remaining, reset, limit } = await rateLimits[limitType].limit(userId);
-
-  if (!success) {
-    const minutesUntilReset = Math.ceil((reset - Date.now()) / 1000 / 60);
-    console.warn(`⚠️ Rate limit exceeded for ${userId} on ${limitType}. Reset in ${minutesUntilReset}m`);
-  }
-
-  return { success, remaining, reset, limit };
+  const { success, remaining, reset } = await rateLimiters[type].limit(userId);
+  return { success, remaining, reset };
 }
 
 /**
- * Format rate limit error message
+ * Format a user-friendly rate limit error message.
  */
 export function formatRateLimitError(result: RateLimitResult): string {
-  const minutesUntilReset = Math.ceil((result.reset - Date.now()) / 1000 / 60);
-  const hoursUntilReset = Math.floor(minutesUntilReset / 60);
+  const minutes = Math.ceil((result.reset - Date.now()) / 60000);
   
-  const timeString = hoursUntilReset > 0 
-    ? `${hoursUntilReset} hour${hoursUntilReset > 1 ? 's' : ''}`
-    : `${minutesUntilReset} minute${minutesUntilReset > 1 ? 's' : ''}`;
-
-  return `Rate limit exceeded. You can try again in ${timeString}. (${result.remaining} requests remaining)`;
+  if (minutes > 60) {
+    const hours = Math.floor(minutes / 60);
+    return `Rate limit exceeded. Try again in ${hours} hour${hours > 1 ? 's' : ''}.`;
+  }
+  
+  return `Rate limit exceeded. Try again in ${minutes} minute${minutes > 1 ? 's' : ''}.`;
 }
 
-// ===========================================
-// CACHING HELPERS (Save Money)
-// ===========================================
+// =============================================================================
+// CACHING
+// =============================================================================
 
 /**
- * Cache expensive AI responses with automatic serialization
- * @param key - Unique cache key
- * @param fetcher - Function that generates the data
+ * Cache expensive AI responses to save money.
+ * 
+ * If the same request is made twice, return cached response instead of
+ * calling the AI again. Cache expires after TTL seconds.
+ * 
+ * @param key - Unique cache key (e.g., 'quiz:math:fractions')
+ * @param fetcher - Function that generates the data if not cached
  * @param ttlSeconds - How long to cache (default: 1 hour)
+ * 
+ * @example
+ * const quiz = await getCached(
+ *   `quiz:${subject}:${topic}`,
+ *   () => generateQuiz(subject, topic),
+ *   3600 // Cache for 1 hour
+ * );
  */
 export async function getCached<T>(
   key: string,
   fetcher: () => Promise<T>,
   ttlSeconds: number = 3600
 ): Promise<T> {
+  // No Redis = no caching, always fetch fresh
   if (!redis) {
-    // No Redis = no caching, always fetch fresh
-    return await fetcher();
+    return fetcher();
   }
 
   try {
-    // Try to get from cache
+    // Check cache
     const cached = await redis.get<string>(key);
-
     if (cached) {
-      console.log(`💾 Cache HIT: ${key}`);
       return JSON.parse(cached) as T;
     }
 
-    console.log(`🔄 Cache MISS: ${key}`);
-
-    // Generate fresh data
+    // Cache miss - generate fresh data
     const fresh = await fetcher();
 
-    // Store in cache (fire-and-forget)
-    redis.setex(key, ttlSeconds, JSON.stringify(fresh)).catch((err) => {
-      console.error('Cache write error:', err);
-    });
+    // Store in cache (fire-and-forget, don't block response)
+    redis.setex(key, ttlSeconds, JSON.stringify(fresh)).catch(() => {});
 
     return fresh;
-  } catch (error) {
-    console.error('Cache error, falling back to fresh data:', error);
-    return await fetcher();
+  } catch {
+    // On any cache error, just fetch fresh data
+    return fetcher();
   }
 }
 
 /**
- * Invalidate cache by pattern
- * Useful when user updates their profile/preferences
- */
-export async function invalidateCache(pattern: string): Promise<void> {
-  if (!redis) return;
-
-  try {
-    const keys = await redis.keys(pattern);
-    if (keys.length > 0) {
-      await redis.del(...keys);
-      console.log(`🗑️ Invalidated ${keys.length} cache keys matching "${pattern}"`);
-    }
-  } catch (error) {
-    console.error('Cache invalidation error:', error);
-  }
-}
-
-/**
- * Generate cache key from multiple parts
+ * Build a cache key from multiple parts.
+ * 
+ * @example
+ * const key = cacheKey('quiz', 'math', 'fractions'); // 'quiz:math:fractions'
  */
 export function cacheKey(...parts: (string | number)[]): string {
   return parts.join(':');
 }
 
-// ===========================================
-// USER SESSION HELPERS (Better UX)
-// ===========================================
-
 /**
- * Store conversation context for tutoring sessions
- * Enables better follow-up question handling
- */
-export async function saveConversationContext(
-  userId: string,
-  subject: string,
-  context: {
-    lastQuestion: string;
-    lastAnswer: any;
-    timestamp: number;
-  }
-): Promise<void> {
-  if (!redis) return;
-
-  try {
-    const key = `context:${userId}:${subject}`;
-    await redis.setex(key, 3600, JSON.stringify(context)); // 1 hour
-  } catch (error) {
-    console.error('Failed to save conversation context:', error);
-  }
-}
-
-/**
- * Retrieve conversation context
- */
-export async function getConversationContext(
-  userId: string,
-  subject: string
-): Promise<{
-  lastQuestion: string;
-  lastAnswer: any;
-  timestamp: number;
-} | null> {
-  if (!redis) return null;
-
-  try {
-    const key = `context:${userId}:${subject}`;
-    const data = await redis.get<string>(key);
-    return data ? JSON.parse(data) : null;
-  } catch (error) {
-    console.error('Failed to get conversation context:', error);
-    return null;
-  }
-}
-
-// ===========================================
-// COST TRACKING (Monitor Spending)
-// ===========================================
-
-/**
- * Track AI costs per user and per flow
- * Enables budget monitoring and alerts
- */
-export async function trackAICost(
-  userId: string,
-  flow: string,
-  cost: number
-): Promise<void> {
-  if (!redis || cost <= 0) return;
-
-  try {
-    const month = new Date().toISOString().slice(0, 7); // "2025-10"
-
-    // Track per-user monthly cost
-    await redis.incrbyfloat(`cost:user:${userId}:${month}`, cost);
-
-    // Track per-flow total cost
-    await redis.incrbyfloat(`cost:flow:${flow}:${month}`, cost);
-
-    // Log expensive operations
-    if (cost > 0.01) {
-      console.log(`💰 Tracked cost: $${cost.toFixed(4)} | User: ${userId} | Flow: ${flow}`);
-    }
-  } catch (error) {
-    console.error('Cost tracking error:', error);
-  }
-}
-
-/**
- * Get user's monthly spending
- */
-export async function getUserMonthlyCost(userId: string): Promise<number> {
-  if (!redis) return 0;
-
-  try {
-    const month = new Date().toISOString().slice(0, 7);
-    const cost = await redis.get<number>(`cost:user:${userId}:${month}`);
-    return cost || 0;
-  } catch (error) {
-    console.error('Failed to get user cost:', error);
-    return 0;
-  }
-}
-
-/**
- * Check if user has exceeded their budget
- * @param userId - User ID
- * @param budget - Monthly budget limit in USD
- */
-export async function checkBudget(
-  userId: string,
-  budget: number
-): Promise<{
-  exceeded: boolean;
-  current: number;
-  budget: number;
-  percentage: number;
-}> {
-  const current = await getUserMonthlyCost(userId);
-  const percentage = (current / budget) * 100;
-  const exceeded = current >= budget;
-
-  if (exceeded) {
-    console.warn(`⚠️ User ${userId} exceeded budget: $${current.toFixed(2)} / $${budget}`);
-  } else if (percentage >= 80) {
-    console.warn(`⚠️ User ${userId} at ${percentage.toFixed(0)}% of budget`);
-  }
-
-  return {
-    exceeded,
-    current,
-    budget,
-    percentage,
-  };
-}
-
-/**
- * Get total costs by flow for the current month
- */
-export async function getFlowCosts(): Promise<Record<string, number>> {
-  if (!redis) return {};
-
-  try {
-    const month = new Date().toISOString().slice(0, 7);
-    const pattern = `cost:flow:*:${month}`;
-    const keys = await redis.keys(pattern);
-
-    const costs: Record<string, number> = {};
-
-    for (const key of keys) {
-      const flowName = key.split(':')[2]; // Extract flow name
-      const cost = await redis.get<number>(key);
-      if (cost) {
-        costs[flowName] = cost;
-      }
-    }
-
-    return costs;
-  } catch (error) {
-    console.error('Failed to get flow costs:', error);
-    return {};
-  }
-}
-
-// ===========================================
-// UTILITY FUNCTIONS
-// ===========================================
-
-/**
- * Simple string hashing for cache keys
+ * Simple hash for creating cache keys from long strings.
  */
 export function hashString(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = hash & hash;
   }
   return Math.abs(hash).toString(36);
 }
 
-/**
- * Check if Redis is available
- */
-export function isRedisAvailable(): boolean {
-  return redis !== null;
-}
+// =============================================================================
+// LEGACY EXPORTS (for backwards compatibility)
+// =============================================================================
+
+// These are used by actions.ts - keeping them but they're just wrappers now
+export const rateLimits = rateLimiters;
+export async function trackAICost(): Promise<void> { /* No-op: cost tracking removed */ }
+export async function saveConversationContext(): Promise<void> { /* No-op */ }
+export async function getConversationContext(): Promise<null> { return null; }
 

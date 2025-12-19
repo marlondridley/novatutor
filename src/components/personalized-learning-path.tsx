@@ -36,6 +36,8 @@ import { useAuth } from "@/context/auth-context";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { VoiceToTextPremium } from "@/components/voice-to-text-premium";
+import { Mic, MessageCircle } from "lucide-react";
 
 const formSchema = z.object({
   subject: z.string().min(1, "Subject is required."),
@@ -53,6 +55,8 @@ export function PersonalizedLearningPath() {
   const { user, supabaseUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [path, setPath] = useState<GeneratePersonalizedLearningPathOutput | null>(null);
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
+  const [voiceInputText, setVoiceInputText] = useState<string>('');
   const { toast } = useToast();
 
   const form = useForm<FormValues>({
@@ -115,6 +119,8 @@ export function PersonalizedLearningPath() {
       specificTopics: data.specificTopics,
       learningGoals: data.learningGoals,
       timeAvailable: data.timeAvailable,
+      // Pass voice input to AI
+      voiceInput: voiceInputText || undefined,
     };
 
     const response = await getLearningPath(input);
@@ -128,24 +134,129 @@ export function PersonalizedLearningPath() {
       toast({
         variant: "destructive",
         title: "Generation Failed",
-        description: response.error || "Failed to generate learning path. Please try again.",
+        description: "Failed to generate learning path. Please try again.",
       });
     }
     setLoading(false);
   };
 
+  // Handle voice transcript from Speak to Coach button
+  const handleVoiceTranscript = async (text: string) => {
+    if (text.trim().length < 20) {
+      toast({
+        title: "Tell me more",
+        description: "Please provide more details about your learning goals, subject, and what you'd like to learn.",
+      });
+      return;
+    }
+
+    // Store voice input in form (will be passed to AI)
+    // Store in a hidden field or use it directly when generating the path
+    const lowerText = text.toLowerCase();
+    
+    // Extract subject (common subjects)
+    const subjects = ['math', 'science', 'english', 'history', 'writing', 'algebra', 'geometry', 'biology', 'chemistry', 'physics'];
+    const foundSubject = subjects.find(s => lowerText.includes(s));
+    if (foundSubject) {
+      form.setValue('subject', foundSubject.charAt(0).toUpperCase() + foundSubject.slice(1));
+    }
+
+    // Extract grade level
+    const gradeMatch = lowerText.match(/(\d+)(?:th|rd|st|nd)?\s*grade/);
+    if (gradeMatch) {
+      form.setValue('gradeLevel', gradeMatch[1]);
+    }
+
+    // Extract topics (text after "topic" or "topics")
+    const topicsMatch = text.match(/topic[s]?[:\s]+(.+?)(?:\.|$|goal|time)/i);
+    if (topicsMatch) {
+      form.setValue('specificTopics', topicsMatch[1].trim());
+    }
+
+    // Extract learning goals (text after "goal" or "goals")
+    const goalsMatch = text.match(/goal[s]?[:\s]+(.+?)(?:\.|$|time|topic)/i);
+    if (goalsMatch) {
+      form.setValue('learningGoals', goalsMatch[1].trim());
+    }
+
+    // Extract time available (number followed by hours/week)
+    const timeMatch = text.match(/(\d+)\s*(?:hours?|hrs?|hr)/i);
+    if (timeMatch) {
+      const hours = parseInt(timeMatch[1]);
+      if (hours >= 1 && hours <= 40) {
+        form.setValue('timeAvailable', hours);
+      }
+    }
+
+    // Extract current understanding (percentage or words like "beginner", "intermediate", "advanced")
+    if (lowerText.includes('beginner') || lowerText.includes('new to') || lowerText.includes('just starting')) {
+      form.setValue('currentUnderstanding', 25);
+    } else if (lowerText.includes('intermediate') || lowerText.includes('somewhat') || lowerText.includes('familiar')) {
+      form.setValue('currentUnderstanding', 50);
+    } else if (lowerText.includes('advanced') || lowerText.includes('experienced') || lowerText.includes('know a lot')) {
+      form.setValue('currentUnderstanding', 75);
+    }
+
+    // Extract learning style
+    if (lowerText.includes('visual') || lowerText.includes('see') || lowerText.includes('watch')) {
+      form.setValue('learningStyle', 'visual');
+    } else if (lowerText.includes('auditory') || lowerText.includes('listen') || lowerText.includes('hear')) {
+      form.setValue('learningStyle', 'auditory');
+    } else if (lowerText.includes('kinesthetic') || lowerText.includes('hands-on') || lowerText.includes('practice')) {
+      form.setValue('learningStyle', 'kinesthetic');
+    } else if (lowerText.includes('read') || lowerText.includes('reading')) {
+      form.setValue('learningStyle', 'reading');
+    }
+
+    // Store voice input to pass to AI
+    setVoiceInputText(text);
+
+    toast({
+      title: "Form populated!",
+      description: "I've filled in the form based on what you said. Review and click 'Generate Learning Path' when ready.",
+    });
+
+    setShowVoiceInput(false);
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5" />
-          🎯 Your Personalized Learning Journey
-        </CardTitle>
-        <CardDescription>
-          We'll build a path based on you — your style, pace, and goals. There's no rush. Just progress.
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              <Sparkles className="h-5 w-5" />
+              🎯 Your Personalized Learning Journey
+            </CardTitle>
+            <CardDescription>
+              We'll build a path based on you — your style, pace, and goals. There's no rush. Just progress.
+            </CardDescription>
+          </div>
+          <Button
+            onClick={() => setShowVoiceInput(!showVoiceInput)}
+            size="sm"
+            className="gap-2 bg-orange-500 hover:bg-orange-600 text-white border-orange-500 hover:border-orange-600"
+          >
+            <Mic className={`h-4 w-4 ${showVoiceInput ? 'animate-pulse' : ''}`} />
+            {showVoiceInput ? 'Stop Voice' : 'Speak to Coach'}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Speak to Coach Voice Input */}
+        {showVoiceInput && (
+          <div className="mb-4">
+            <VoiceToTextPremium
+              onTranscript={handleVoiceTranscript}
+              title="🎙️ Tell me about your learning journey"
+              description="Speak about what subject you want to learn, your grade level, what topics you're interested in, your learning goals, and how much time you have per week."
+              placeholder="Your learning details will appear here as you speak..."
+              autoStart={true}
+            />
+          </div>
+        )}
+
         {!path && (
           <form onSubmit={form.handleSubmit(handleGeneratePath)} className="space-y-4">
             <div className="space-y-2">

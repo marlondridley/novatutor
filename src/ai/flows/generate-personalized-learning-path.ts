@@ -25,6 +25,7 @@ const GeneratePersonalizedLearningPathInputSchema = z.object({
   specificTopics: z.string().optional().describe('Specific topics the student wants to focus on or is struggling with.'),
   learningGoals: z.string().optional().describe('What the student wants to achieve with this learning path.'),
   timeAvailable: z.number().optional().describe('Hours per week the student can dedicate to studying this subject.'),
+  voiceInput: z.string().optional().describe('Original voice input from the student describing their learning needs and context.'),
 });
 
 export type GeneratePersonalizedLearningPathInput = z.infer<typeof GeneratePersonalizedLearningPathInputSchema>;
@@ -71,6 +72,8 @@ Time Available: ${input.timeAvailable ? `${input.timeAvailable} hours per week` 
 
 ${input.specificTopics ? `Specific Topics to Focus On:\n${input.specificTopics}\n` : ''}
 ${input.learningGoals ? `Learning Goals:\n${input.learningGoals}\n` : ''}
+
+${input.voiceInput ? `Student's Voice Input (original description):\n"${input.voiceInput}"\n\nUse this voice input to better understand the student's needs, preferences, and context. Extract any additional insights that might not be captured in the structured fields above.\n` : ''}
 
 Mastery Scores (derived from understanding level):
 ${JSON.stringify(input.masteryScores, null, 2)}

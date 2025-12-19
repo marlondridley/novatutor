@@ -66,6 +66,26 @@ export const interventionChartConfig = {
   effectiveness: {
     label: "Effectiveness",
   },
+  'Practice Problems': {
+    label: "Practice Problems",
+    color: 'hsl(var(--chart-2))',
+  },
+  'Gamified Quizzes': {
+    label: "Gamified Quizzes",
+    color: 'hsl(var(--chart-5))',
+  },
+  'Concept Videos': {
+    label: "Concept Videos",
+    color: 'hsl(var(--chart-4))',
+  },
+  'Visual Aids': {
+    label: "Visual Aids",
+    color: 'hsl(var(--chart-1))',
+  },
+  'Peer Tutoring': {
+    label: "Peer Tutoring",
+    color: 'hsl(var(--chart-3))',
+  },
 } satisfies ChartConfig;
 
 

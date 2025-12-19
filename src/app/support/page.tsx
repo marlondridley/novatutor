@@ -12,7 +12,7 @@ export default function SupportPage() {
             Support Center
           </h1>
           <p className="text-xl text-muted-foreground">
-            We're here to help you get the most out of Study Coach
+            We're here to help you get the most out of BestTutorEver
           </p>
         </div>
 
@@ -46,7 +46,7 @@ export default function SupportPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Get instant answers to the most frequently asked questions about Study Coach features and billing.
+                  Get instant answers to the most frequently asked questions about BestTutorEver features and billing.
                 </p>
               </CardContent>
             </Card>
@@ -79,7 +79,7 @@ export default function SupportPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Join our community to share tips, ask questions, and learn from other Study Coach users.
+                Join our community to share tips, ask questions, and learn from other BestTutorEver users.
               </p>
               <span className="text-sm text-muted-foreground italic">Coming soon</span>
             </CardContent>
@@ -95,7 +95,7 @@ export default function SupportPage() {
                 <ul className="space-y-3">
                   <li>
                     <Link href="/help-center" className="text-primary hover:underline">
-                      Getting started with Study Coach
+                      Getting started with BestTutorEver
                     </Link>
                   </li>
                   <li>

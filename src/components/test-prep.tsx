@@ -89,7 +89,7 @@ export function TestPrep({ subject, topic }: TestPrepProps) {
       toast({
         variant: 'destructive',
         title: 'Generation Failed',
-        description: response.error,
+        description: 'Failed to generate test prep materials. Please try again.',
       });
     }
     setLoading(false);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import VoiceToText from '@/components/voice-to-text';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ interface VoiceToTextPremiumProps {
   placeholder?: string;
   title?: string;
   description?: string;
+  autoStart?: boolean;
 }
 
 export function VoiceToTextPremium({
@@ -21,33 +22,40 @@ export function VoiceToTextPremium({
   placeholder,
   title,
   description,
+  autoStart = false,
 }: VoiceToTextPremiumProps) {
   const { user } = useAuth();
   const [retryCount, setRetryCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
-  const [lastTranscript, setLastTranscript] = useState('');
+  const lastTranscriptRef = useRef<string>('');
+  const retryCountRef = useRef<number>(0);
 
   // Check if user has premium voice (TODO: Connect to real subscription data)
   const hasPremiumVoice = user?.premium_voice_enabled || false;
 
-  const handleTranscript = (transcript: string) => {
+  // Memoize the handler to prevent infinite loops
+  const handleTranscript = useCallback((transcript: string) => {
     // Track retries (if user clears and starts over multiple times)
-    if (transcript.length < lastTranscript.length - 10) {
-      const newRetryCount = retryCount + 1;
-      setRetryCount(newRetryCount);
+    // Only check retries if transcript is significantly shorter (user cleared/reset)
+    if (transcript.length < lastTranscriptRef.current.length - 10 && lastTranscriptRef.current.length > 20) {
+      retryCountRef.current += 1;
+      setRetryCount(retryCountRef.current);
 
       // Show upgrade prompt after 3 retries
-      if (newRetryCount >= 3 && !hasPremiumVoice) {
+      if (retryCountRef.current >= 3 && !hasPremiumVoice) {
         setShowUpgradePrompt(true);
       }
     }
 
-    setLastTranscript(transcript);
+    // Update ref without causing re-render
+    lastTranscriptRef.current = transcript;
+    
+    // Call parent callback
     onTranscript?.(transcript);
-  };
+  }, [onTranscript, hasPremiumVoice]);
 
   const handleUpgrade = () => {
-    // Redirect to Stripe payment link for Study Coach + Premium Voice bundle
+    // Redirect to Stripe payment link for BestTutorEver + Premium Voice bundle
     window.location.href = 'https://buy.stripe.com/4gM28rfBb0Fr3sl1L92VG05';
   };
 

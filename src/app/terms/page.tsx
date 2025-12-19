@@ -17,7 +17,7 @@ export default function TermsOfServicePage() {
           <section>
             <h2 className="text-2xl font-bold mb-4">Agreement to Terms</h2>
             <p className="text-muted-foreground">
-              By accessing or using Study Coach, you agree to be bound by these Terms of Service and all 
+              By accessing or using BestTutorEver, you agree to be bound by these Terms of Service and all 
               applicable laws and regulations. If you do not agree with any of these terms, you are 
               prohibited from using or accessing this service.
             </p>
@@ -26,7 +26,7 @@ export default function TermsOfServicePage() {
           <section>
             <h2 className="text-2xl font-bold mb-4">Description of Service</h2>
             <p className="text-muted-foreground">
-              Study Coach is an AI-powered educational platform that provides tutoring, study planning, 
+              BestTutorEver is an AI-powered educational platform that provides tutoring, study planning, 
               practice quizzes, and related learning tools (the "Service"). The Service is designed to 
               supplement, not replace, traditional education and should be used as a learning aid.
             </p>
@@ -77,7 +77,7 @@ export default function TermsOfServicePage() {
           <section>
             <h2 className="text-2xl font-bold mb-4">Academic Integrity</h2>
             <p className="text-muted-foreground">
-              Study Coach is designed to help students learn through guided instruction, not to complete 
+              BestTutorEver is designed to help students learn through guided instruction, not to complete 
               assignments for them. We encourage students to:
             </p>
             <ul className="list-disc pl-6 space-y-2 text-muted-foreground mt-4">
@@ -125,8 +125,8 @@ export default function TermsOfServicePage() {
             
             <h3 className="text-xl font-semibold mb-3 mt-6">Our Content</h3>
             <p className="text-muted-foreground">
-              All content provided through Study Coach, including but not limited to text, graphics, logos, 
-              software, and AI-generated responses, is the property of Study Coach or its licensors and is 
+              All content provided through BestTutorEver, including but not limited to text, graphics, logos, 
+              software, and AI-generated responses, is the property of BestTutorEver or its licensors and is 
               protected by copyright and other intellectual property laws.
             </p>
 
@@ -143,7 +143,7 @@ export default function TermsOfServicePage() {
             
             <h3 className="text-xl font-semibold mb-3 mt-6">Educational Tool</h3>
             <p className="text-muted-foreground">
-              Study Coach is an educational tool that uses AI technology. While we strive for accuracy:
+              BestTutorEver is an educational tool that uses AI technology. While we strive for accuracy:
             </p>
             <ul className="list-disc pl-6 space-y-2 text-muted-foreground mt-4">
               <li>AI responses may contain errors or inaccuracies</li>
@@ -166,7 +166,7 @@ export default function TermsOfServicePage() {
           <section>
             <h2 className="text-2xl font-bold mb-4">Limitation of Liability</h2>
             <p className="text-muted-foreground">
-              To the maximum extent permitted by law, Study Coach shall not be liable for any indirect, 
+              To the maximum extent permitted by law, BestTutorEver shall not be liable for any indirect, 
               incidental, special, consequential, or punitive damages, or any loss of profits or revenues, 
               whether incurred directly or indirectly, or any loss of data, use, goodwill, or other 
               intangible losses resulting from:
@@ -226,7 +226,7 @@ export default function TermsOfServicePage() {
             <div className="mt-4 p-4 bg-muted rounded-lg">
               <p className="text-muted-foreground">
                 <strong>Email:</strong> legal@studycoach.com<br />
-                <strong>Mail:</strong> Study Coach Legal Department<br />
+                <strong>Mail:</strong> BestTutorEver Legal Department<br />
                 [Your Company Address]<br />
                 [City, State ZIP]
               </p>
@@ -235,7 +235,7 @@ export default function TermsOfServicePage() {
 
           <section className="mt-12 p-6 bg-muted rounded-lg">
             <p className="text-sm text-muted-foreground">
-              By using Study Coach, you acknowledge that you have read, understood, and agree to be bound 
+              By using BestTutorEver, you acknowledge that you have read, understood, and agree to be bound 
               by these Terms of Service and our Privacy Policy.
             </p>
           </section>

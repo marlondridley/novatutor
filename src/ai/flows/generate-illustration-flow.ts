@@ -1,170 +1,119 @@
-'use server';
-
 /**
- * @fileOverview Generates educational illustrations using OpenAI DALL-E 3.
- *
- * - generateIllustration - Generates an image based on a topic.
- * - GenerateIllustrationInput - The input type for the generateIllustration function.
- * - GenerateIllustrationOutput - The return type for the generateIllustration function.
+ * Generate Educational Illustrations
+ * 
+ * Uses OpenAI DALL-E 3 to create educational images.
+ * This is an EXPENSIVE operation (~$0.04-0.08 per image).
  */
+
+'use server';
 
 import { z } from 'zod';
 import OpenAI from 'openai';
 import { retryWithBackoff } from '../error-handling';
-import { validateSubject, sanitizeUserInput, checkPromptSafety, ValidationError } from '../validation';
+import { sanitize, detectPromptInjection, ValidationError } from '../validation';
+
+// =============================================================================
+// TYPES
+// =============================================================================
 
 const GenerateIllustrationInputSchema = z.object({
   topic: z.string().describe('The educational topic to illustrate.'),
-  style: z.enum(['diagram', 'realistic', 'cartoon', 'sketch']).optional().describe('Visual style preference'),
-  size: z.enum(['1024x1024', '1792x1024', '1024x1792']).optional().describe('Image dimensions'),
+  style: z.enum(['diagram', 'realistic', 'cartoon', 'sketch']).optional(),
+  size: z.enum(['1024x1024', '1792x1024', '1024x1792']).optional(),
 });
 export type GenerateIllustrationInput = z.infer<typeof GenerateIllustrationInputSchema>;
 
 const GenerateIllustrationOutputSchema = z.object({
-  imageUrl: z.string().describe('The URL of the generated image from DALL-E 3'),
-  revisedPrompt: z.string().describe('The actual prompt used by DALL-E 3 (may be refined)'),
-  explanation: z.string().describe('A brief explanation of the illustration.'),
+  imageUrl: z.string().describe('The URL of the generated image'),
+  revisedPrompt: z.string().describe('The prompt DALL-E actually used'),
+  explanation: z.string().describe('Brief explanation of the illustration'),
 });
 export type GenerateIllustrationOutput = z.infer<typeof GenerateIllustrationOutputSchema>;
 
-/**
- * Style presets for educational illustrations
- */
+// =============================================================================
+// STYLE PRESETS
+// =============================================================================
+
 const STYLE_PRESETS = {
-  diagram: 'Clean, simple diagram with clear labels and arrows, suitable for textbooks. Minimal colors, high contrast.',
-  realistic: 'Photorealistic educational illustration with accurate details and natural lighting.',
-  cartoon: 'Friendly cartoon style with vibrant colors, perfect for younger students. Approachable and fun.',
-  sketch: 'Hand-drawn sketch style with pencil-like texture, ideal for concept illustrations.',
+  diagram: 'Clean, simple diagram with clear labels. Minimal colors, high contrast.',
+  realistic: 'Photorealistic educational illustration with accurate details.',
+  cartoon: 'Friendly cartoon style with vibrant colors, for younger students.',
+  sketch: 'Hand-drawn sketch style with pencil texture.',
 };
 
+// =============================================================================
+// MAIN FUNCTION
+// =============================================================================
+
 /**
- * Generate educational illustration using OpenAI DALL-E 3
+ * Generate an educational illustration using DALL-E 3.
+ * 
+ * @example
+ * const result = await generateIllustration({
+ *   topic: "Photosynthesis process in plants",
+ *   style: "diagram"
+ * });
+ * console.log(result.imageUrl);
  */
 export async function generateIllustration(
   input: GenerateIllustrationInput
 ): Promise<GenerateIllustrationOutput> {
   const { topic, style = 'diagram', size = '1024x1024' } = input;
 
-  // Validate and sanitize topic
-  const sanitizedTopic = sanitizeUserInput(topic);
+  // Validate topic
+  const cleanTopic = sanitize(topic, 500);
   
-  if (sanitizedTopic.length < 3) {
+  if (cleanTopic.length < 3) {
     throw new ValidationError('Topic must be at least 3 characters', 'topic');
   }
-  
-  if (sanitizedTopic.length > 500) {
-    throw new ValidationError('Topic must be 500 characters or less', 'topic');
+
+  // Check for prompt injection
+  if (detectPromptInjection(cleanTopic)) {
+    throw new ValidationError('Invalid content detected', 'topic');
   }
 
-  // Check for inappropriate content
-  const safetyCheck = checkPromptSafety(sanitizedTopic, 'topic');
-  if (!safetyCheck.safe) {
-    throw new ValidationError(
-      `Content safety check failed: ${safetyCheck.reason}`,
-      'topic'
-    );
+  // Basic safety filter for violent/explicit content
+  const unsafePatterns = /(weapon|kill|blood|violent|gore|explicit|nsfw)/i;
+  if (unsafePatterns.test(cleanTopic)) {
+    throw new ValidationError('Please choose a school-safe topic', 'topic');
   }
 
-  // Check if OpenAI API key is configured
+  // Check API key
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error(
-      'OpenAI API key not configured. ' +
-      'Please set OPENAI_API_KEY in your .env.local file to use illustration generation.'
-    );
+    throw new Error('OPENAI_API_KEY not configured in .env.local');
   }
 
-  // Initialize OpenAI client
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   return retryWithBackoff(async () => {
-    // Build educational prompt
+    // Build prompt
     const styleInstruction = STYLE_PRESETS[style];
-    const educationalPrompt = 
-      `Educational illustration: ${sanitizedTopic}. ` +
+    const prompt = 
+      `Educational illustration: ${cleanTopic}. ` +
       `Style: ${styleInstruction} ` +
-      `Requirements: Clear, accurate, suitable for students, no text in image, ` +
-      `safe for all ages, focused on learning.`;
+      `Requirements: Clear, accurate, suitable for students, no text in image, safe for all ages.`;
 
-    console.log(`🎨 Generating illustration for: "${sanitizedTopic}" (${style} style)...`);
-
-    // First, check content moderation
-    try {
-      const moderation = await openai.moderations.create({
-        input: educationalPrompt,
-      });
-
-      if (moderation.results[0].flagged) {
-        const categories = Object.entries(moderation.results[0].categories)
-          .filter(([_, flagged]) => flagged)
-          .map(([category]) => category);
-        
-        throw new ValidationError(
-          `Content policy violation detected: ${categories.join(', ')}`,
-          'topic'
-        );
-      }
-    } catch (error: any) {
-      if (error instanceof ValidationError) throw error;
-      // If moderation check fails, log but continue
-      console.warn('Content moderation check failed:', error.message);
-    }
-
-    // Generate image with DALL-E 3
+    // Generate image
     const image = await openai.images.generate({
       model: 'dall-e-3',
-      prompt: educationalPrompt,
+      prompt,
       n: 1,
-      size: size,
-      quality: 'standard', // 'standard' or 'hd'
-      style: 'natural', // 'natural' or 'vivid'
+      size,
+      quality: 'standard',
+      style: 'natural',
     });
 
     const imageUrl = image.data?.[0]?.url;
-    const revisedPrompt = image.data?.[0]?.revised_prompt || educationalPrompt;
+    const revisedPrompt = image.data?.[0]?.revised_prompt || prompt;
 
     if (!imageUrl) {
       throw new Error('Failed to generate image - no URL returned');
     }
 
-    console.log(`✅ Illustration generated successfully`);
-
-    // Generate explanation
-    const explanation = 
-      `This educational illustration depicts ${sanitizedTopic} in a ${style} style. ` +
-      `The image is designed to help students understand the concept visually.`;
-
     return {
       imageUrl,
       revisedPrompt,
-      explanation,
+      explanation: `Educational illustration of ${cleanTopic} in ${style} style.`,
     };
   });
-}
-
-/**
- * Batch generate multiple illustrations
- */
-export async function batchGenerateIllustrations(
-  topics: string[],
-  style?: 'diagram' | 'realistic' | 'cartoon' | 'sketch'
-): Promise<GenerateIllustrationOutput[]> {
-  // Process sequentially to avoid rate limits (DALL-E is expensive)
-  const results: GenerateIllustrationOutput[] = [];
-  
-  for (const topic of topics) {
-    try {
-      const result = await generateIllustration({ topic, style });
-      results.push(result);
-      
-      // Add delay between requests to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    } catch (error) {
-      console.error(`Failed to generate illustration for "${topic}":`, error);
-      // Continue with next topic
-    }
-  }
-  
-  return results;
 }

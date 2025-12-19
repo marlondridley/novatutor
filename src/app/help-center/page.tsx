@@ -33,7 +33,7 @@ export default function HelpCenterPage() {
               <Book className="h-10 w-10 text-primary mb-4" />
               <CardTitle>Getting Started</CardTitle>
               <CardDescription>
-                Learn the basics of using Study Coach
+                Learn the basics of using BestTutorEver
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -169,7 +169,7 @@ export default function HelpCenterPage() {
               <Settings className="h-10 w-10 text-primary mb-4" />
               <CardTitle>Account Settings</CardTitle>
               <CardDescription>
-                Customize your Study Coach experience
+                Customize your BestTutorEver experience
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -244,7 +244,7 @@ export default function HelpCenterPage() {
                     How do I start my 7-day free trial?
                   </Link>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Step-by-step guide to getting started with Study Coach
+                    Step-by-step guide to getting started with BestTutorEver
                   </p>
                 </div>
                 <div className="pb-4 border-b">
@@ -265,7 +265,7 @@ export default function HelpCenterPage() {
                 </div>
                 <div className="pb-4 border-b">
                   <Link href="#" className="text-primary hover:underline font-medium">
-                    Can I use Study Coach on multiple devices?
+                    Can I use BestTutorEver on multiple devices?
                   </Link>
                   <p className="text-sm text-muted-foreground mt-1">
                     Information about device compatibility and syncing

@@ -1,78 +1,104 @@
+/**
+ * Simple Rule-Based Summarizer Hook
+ * 
+ * Uses extractive summarization (no heavy ML models needed):
+ * - Sentence scoring based on keywords, position, and length
+ * - No external dependencies or model downloads
+ * - Works instantly, 100% private
+ * 
+ * Usage:
+ *   const { summarize, isLoading } = useLocalSummarizer();
+ *   const summary = await summarize("Long text here...");
+ */
+
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 
 interface SummarizerOptions {
-  maxLength?: number;
-  minLength?: number;
+  maxSentences?: number; // Max sentences in summary (default: 3)
+  minLength?: number;    // Min text length to summarize (default: 100)
 }
 
 export function useLocalSummarizer() {
   const [isLoading, setIsLoading] = useState(false);
-  const [isModelLoaded, setIsModelLoaded] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const pipelineRef = useRef<any>(null);
 
-  // Load model on mount (with lazy loading)
-  useEffect(() => {
-    async function loadModel() {
-      try {
-        setIsLoading(true);
-        const { pipeline } = await import('@xenova/transformers');
-        
-        // Use a lightweight summarization model
-        // Model: ~45MB, cached after first download
-        pipelineRef.current = await pipeline(
-          'summarization',
-          'Xenova/distilbart-cnn-6-6',
-          {
-            progress_callback: (data: any) => {
-              if (data.status === 'progress') {
-                setProgress(Math.round(data.progress));
-              }
-            }
-          }
-        );
-        
-        setIsModelLoaded(true);
-        setIsLoading(false);
-      } catch (err: any) {
-        console.error('Failed to load summarization model:', err);
-        setError(err.message);
-        setIsLoading(false);
-      }
-    }
-
-    loadModel();
-  }, []);
-
+  /**
+   * Extractive summarization: Score sentences and return top N
+   */
   const summarize = async (
     text: string,
     options: SummarizerOptions = {}
   ): Promise<string> => {
-    if (!pipelineRef.current) {
-      throw new Error('Model not loaded yet');
-    }
+    const { maxSentences = 3, minLength = 100 } = options;
 
-    if (!text || text.trim().length < 50) {
-      throw new Error('Text too short to summarize (min 50 characters)');
-    }
+    setIsLoading(true);
+    setError(null);
 
     try {
-      setIsLoading(true);
-      setError(null);
+      // Validate input
+      if (!text || text.trim().length < minLength) {
+        throw new Error(`Text too short to summarize (min ${minLength} characters)`);
+      }
 
-      const result = await pipelineRef.current(text, {
-        max_length: options.maxLength || 130,
-        min_length: options.minLength || 30,
-        do_sample: false,
+      // Clean and split into sentences
+      const sentences = text
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(/[.!?]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 10); // Remove very short fragments
+
+      if (sentences.length <= maxSentences) {
+        // Already short enough
+        return sentences.join('. ') + '.';
+      }
+
+      // Score each sentence
+      const scored = sentences.map((sentence, index) => {
+        let score = 0;
+
+        // Position scoring: First and last sentences often contain key info
+        if (index === 0) score += 2; // Opening sentence bonus
+        if (index === sentences.length - 1) score += 1.5; // Closing sentence bonus
+
+        // Length scoring: Prefer medium-length sentences
+        const words = sentence.split(' ').length;
+        if (words >= 8 && words <= 25) score += 1;
+
+        // Keyword scoring: Look for important words
+        const keywords = [
+          'important', 'key', 'main', 'essential', 'crucial', 'significant',
+          'therefore', 'because', 'result', 'conclusion', 'summary',
+          'first', 'second', 'third', 'finally', 'overall',
+        ];
+        const lowerSentence = sentence.toLowerCase();
+        keywords.forEach(keyword => {
+          if (lowerSentence.includes(keyword)) score += 0.5;
+        });
+
+        // Numbers and specific terms often indicate important facts
+        if (/\d+/.test(sentence)) score += 0.3;
+        if (/[A-Z][a-z]+\s[A-Z][a-z]+/.test(sentence)) score += 0.2; // Proper nouns
+
+        return { sentence, score, index };
       });
 
+      // Sort by score and take top N
+      const topSentences = scored
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxSentences)
+        .sort((a, b) => a.index - b.index); // Re-sort by original order
+
+      const summary = topSentences.map(s => s.sentence).join('. ') + '.';
+
       setIsLoading(false);
-      return result[0].summary_text;
+      return summary;
+
     } catch (err: any) {
-      setError(err.message);
+      console.error('Summarization error:', err);
+      setError(err.message || 'Failed to summarize');
       setIsLoading(false);
       throw err;
     }
@@ -81,9 +107,8 @@ export function useLocalSummarizer() {
   return {
     summarize,
     isLoading,
-    isModelLoaded,
-    progress,
+    isModelLoaded: true, // No model needed
+    progress: 100,       // Always ready
     error,
   };
 }
-

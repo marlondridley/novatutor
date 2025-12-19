@@ -1,3 +1,5 @@
+ "use client";
+
 import { ParentDashboard } from '@/components/parent-dashboard';
 
 export default function ParentDashboardPage() {

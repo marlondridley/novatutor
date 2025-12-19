@@ -20,18 +20,18 @@ export function LearningRhythmChart() {
   useEffect(() => {
     // TODO: Fetch real data from Supabase based on user's activity
     // For now, generate data based on last 7 days
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const last7Days: DayActivity[] = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - (6 - i));
-      
+
       // Mock data - replace with real Supabase query
       const minutes = Math.random() > 0.3 ? Math.floor(Math.random() * 60) + 10 : 0;
-      
+
       return {
         day: date.toLocaleDateString('en-US', { weekday: 'short' }),
         minutes,
-        intensity: minutes === 0 ? 'none' : 
-                  minutes < 20 ? 'low' : 
+        intensity: minutes === 0 ? 'none' :
+                  minutes < 20 ? 'low' :
                   minutes < 40 ? 'medium' : 'high'
       };
     });
