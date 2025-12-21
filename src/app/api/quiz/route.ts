@@ -14,6 +14,7 @@ const QuizRequestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
+  let sessionId: string | null = null;
   
   try {
     // Rate limiting
@@ -54,6 +55,8 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single();
+      
+    sessionId = session?.id ?? null;
 
     // Generate test prep materials
     const response = await generateTestPrep({
@@ -84,7 +87,7 @@ export async function POST(req: NextRequest) {
     const tokensUsed = Math.ceil(JSON.stringify(response).length / 4);
     const costUsd = (tokensUsed / 1000) * 0.002;
 
-    if (session) {
+    if (sessionId) {
       await supabase
         .from('ai_sessions')
         .update({
@@ -92,9 +95,13 @@ export async function POST(req: NextRequest) {
           duration_seconds: Math.floor(duration / 1000),
           tokens_used: tokensUsed,
           cost_usd: costUsd,
-          metadata: { quiz_id: quizResult?.id },
+          metadata: { 
+            quiz_id: quizResult?.id,
+            latency_ms: duration,
+            agent_route: `quiz:${validatedData.type}`,
+          },
         })
-        .eq('id', session.id);
+        .eq('id', sessionId);
     }
 
     logger.apiResponse('POST', '/api/quiz', 200, duration, {
@@ -109,7 +116,7 @@ export async function POST(req: NextRequest) {
       success: true,
       data: response,
       quiz_id: quizResult?.id,
-      session_id: session?.id,
+      session_id: sessionId,
     });
 
   } catch (error: any) {
@@ -121,6 +128,25 @@ export async function POST(req: NextRequest) {
         { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       );
+    }
+
+    // ✅ Mark session as failed (helps parent-facing reliability metrics)
+    if (sessionId) {
+      try {
+        await (await createClient())
+          .from('ai_sessions')
+          .update({
+            ended_at: new Date().toISOString(),
+            duration_seconds: Math.floor(duration / 1000),
+            metadata: {
+              failed: true,
+              error_message: error?.message || String(error),
+            },
+          })
+          .eq('id', sessionId);
+      } catch {
+        // best-effort only
+      }
     }
 
     logger.error('Quiz API error', error, {

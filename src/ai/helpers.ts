@@ -1,7 +1,7 @@
 /**
  * AI Helper Functions
  * 
- * Simple utilities for calling OpenAI-compatible APIs (OpenAI, DeepSeek, Azure).
+ * Simple utilities for calling AI APIs (Anthropic Claude, OpenAI, DeepSeek, Azure).
  * These are the core building blocks for all AI features.
  * 
  * Usage:
@@ -9,11 +9,64 @@
  *   const text = await generateText(messages);
  */
 
-import { openai, DEFAULT_MODEL } from './genkit';
+import { openai, anthropic, DEFAULT_MODEL, IS_ANTHROPIC } from './genkit';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { z } from 'zod';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { retryWithBackoff } from './error-handling';
+
+// =============================================================================
+// ANTHROPIC HELPERS
+// =============================================================================
+
+/**
+ * Convert OpenAI-style messages to Anthropic format
+ */
+function convertToAnthropicMessages(messages: ChatCompletionMessageParam[]): {
+  system: string;
+  messages: Array<{ role: 'user' | 'assistant'; content: string | any[] }>;
+} {
+  let systemPrompt = '';
+  const anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string | any[] }> = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      // Anthropic uses a separate system parameter
+      systemPrompt += (typeof msg.content === 'string' ? msg.content : '') + '\n';
+    } else if (msg.role === 'user' || msg.role === 'assistant') {
+      // Handle content that might be string or array (for images)
+      if (typeof msg.content === 'string') {
+        anthropicMessages.push({ role: msg.role, content: msg.content });
+      } else if (Array.isArray(msg.content)) {
+        // Convert OpenAI image format to Anthropic format
+        const anthropicContent: any[] = [];
+        for (const part of msg.content) {
+          if (part.type === 'text') {
+            anthropicContent.push({ type: 'text', text: part.text });
+          } else if (part.type === 'image_url') {
+            // Extract base64 data from data URI
+            const url = part.image_url?.url || '';
+            if (url.startsWith('data:')) {
+              const [mediaTypePart, base64Data] = url.split(',');
+              const mediaType = mediaTypePart.replace('data:', '').replace(';base64', '');
+              anthropicContent.push({
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: mediaType,
+                  data: base64Data,
+                },
+              });
+            }
+          }
+        }
+        anthropicMessages.push({ role: msg.role, content: anthropicContent });
+      }
+    }
+  }
+
+  return { system: systemPrompt.trim(), messages: anthropicMessages };
+}
 
 // =============================================================================
 // GENERATE STRUCTURED RESPONSE
@@ -56,16 +109,36 @@ export async function generateStructured<T extends z.ZodType>(options: {
       lastMessage.content += `\n\nRespond with valid JSON matching this schema:\n${jsonSchema}`;
     }
 
-    // Call the AI
-    const completion = await openai.chat.completions.create({
-      model,
-      messages: enhancedMessages,
-      temperature,
-      response_format: { type: 'json_object' },
-    });
+    let responseText: string;
+
+    // Use Anthropic if configured
+    if (IS_ANTHROPIC && anthropic) {
+      const { system, messages: anthropicMsgs } = convertToAnthropicMessages(enhancedMessages);
+      
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: 4096,
+        system: system + '\n\nYou must respond with valid JSON only. No markdown, no explanations.',
+        messages: anthropicMsgs,
+      });
+
+      // Extract text from Anthropic response
+      const textBlock = response.content.find(block => block.type === 'text');
+      responseText = textBlock && 'text' in textBlock ? textBlock.text : '{}';
+    } else if (openai) {
+      // Use OpenAI-compatible API
+      const completion = await openai.chat.completions.create({
+        model,
+        messages: enhancedMessages,
+        temperature,
+        response_format: { type: 'json_object' },
+      });
+      responseText = completion.choices[0]?.message?.content || '{}';
+    } else {
+      throw new Error('No AI client configured');
+    }
 
     // Parse and validate the response
-    const responseText = completion.choices[0]?.message?.content || '{}';
     const parsed = JSON.parse(responseText);
     
     return schema.parse(parsed);
@@ -94,13 +167,31 @@ export async function generateText(
   const { model = DEFAULT_MODEL, temperature = 0.7 } = options || {};
 
   return retryWithBackoff(async () => {
-    const completion = await openai.chat.completions.create({
-      model,
-      messages,
-      temperature,
-    });
+    // Use Anthropic if configured
+    if (IS_ANTHROPIC && anthropic) {
+      const { system, messages: anthropicMsgs } = convertToAnthropicMessages(messages);
+      
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: 4096,
+        system: system || undefined,
+        messages: anthropicMsgs,
+      });
 
-    return completion.choices[0]?.message?.content || '';
+      // Extract text from Anthropic response
+      const textBlock = response.content.find(block => block.type === 'text');
+      return textBlock && 'text' in textBlock ? textBlock.text : '';
+    } else if (openai) {
+      // Use OpenAI-compatible API
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        temperature,
+      });
+      return completion.choices[0]?.message?.content || '';
+    } else {
+      throw new Error('No AI client configured');
+    }
   });
 }
 

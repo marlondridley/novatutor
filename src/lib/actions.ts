@@ -26,6 +26,9 @@ import { generateTestPrep, type TestPrepInput } from "@/ai/flows/test-prep-flow"
 import { speechToText, type SpeechToTextInput } from "@/ai/flows/speech-to-text-flow";
 import { checkRateLimit, formatRateLimitError } from "@/lib/redis";
 import { logger } from "@/lib/logger";
+import { generateStructured } from "@/ai/helpers";
+import { COACHING_SYSTEM_PROMPT } from "@/ai/prompts";
+import { z } from "zod";
 
 // =============================================================================
 // TYPES
@@ -80,6 +83,83 @@ export async function getEducationalAssistantResponse(
 
   return withErrorHandling('Educational Assistant', async () => {
     const response = await connectWithSubjectSpecializedTutor(input);
+    return response;
+  });
+}
+
+// =============================================================================
+// EXECUTIVE FUNCTION COACHING
+// =============================================================================
+
+const CoachingResponseSchema = z.object({
+  coachResponse: z.string().describe('The coaching response message'),
+});
+
+export type CoachingInput = {
+  studentQuestion: string;
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  sessionContext?: {
+    confidenceLevel?: number;
+    focusGoal?: string;
+    subject?: string;
+  };
+  userId?: string;
+};
+
+/**
+ * Get a response from the executive function coach.
+ * Uses the comprehensive COACHING_SYSTEM_PROMPT for empathetic, skill-building support.
+ */
+export async function getCoachingResponse(
+  input: CoachingInput
+): Promise<ActionResult<{ coachResponse: string }>> {
+  const userId = input.userId || 'anonymous';
+  
+  // Check rate limit
+  const rateLimit = await checkRateLimit('ai', userId);
+  if (!rateLimit.success) {
+    return { success: false, error: formatRateLimitError(rateLimit) };
+  }
+
+  return withErrorHandling('Executive Function Coach', async () => {
+    // Build context for the coach
+    let contextInfo = '';
+    if (input.sessionContext) {
+      const { confidenceLevel, focusGoal, subject } = input.sessionContext;
+      if (confidenceLevel !== undefined) {
+        contextInfo += `\nStudent's current confidence level: ${confidenceLevel}/10`;
+      }
+      if (focusGoal) {
+        contextInfo += `\nFocus goal: ${focusGoal}`;
+      }
+      if (subject) {
+        contextInfo += `\nSubject context: ${subject}`;
+      }
+    }
+
+    // Build message history
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+      { role: 'system' as any, content: COACHING_SYSTEM_PROMPT },
+    ];
+
+    // Add conversation history if provided
+    if (input.conversationHistory && input.conversationHistory.length > 0) {
+      messages.push(...input.conversationHistory);
+    }
+
+    // Add current question with context
+    messages.push({
+      role: 'user',
+      content: contextInfo 
+        ? `${contextInfo}\n\nStudent: ${input.studentQuestion}`
+        : input.studentQuestion,
+    });
+
+    const response = await generateStructured({
+      messages: messages as any,
+      schema: CoachingResponseSchema,
+    });
+
     return response;
   });
 }

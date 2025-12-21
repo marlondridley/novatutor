@@ -1,15 +1,14 @@
 /**
  * Natural Speech Synthesis
  *
- * Wrapper around the browser's built-in Text-to-Speech (TTS) API with:
- * - Style presets (rate/pitch/volume)
- * - Better voice selection (prefers higher-quality voices if available)
- *
- * Note: This uses the FREE browser TTS, not OpenAI's paid TTS API.
+ * Two TTS options:
+ * 1. Edge TTS (neural voices) - FREE, natural-sounding, server-side
+ * 2. Browser TTS (fallback) - FREE, built-in, less natural
  *
  * Usage:
  *   await speakNaturally("Hello, let me explain this concept.");
  *   await speakNaturally("Great job!", 'celebration');
+ *   await speakNaturally("Here's how...", 'explanation', undefined, undefined, true); // Force Edge TTS
  */
 
 // =============================================================================
@@ -52,17 +51,21 @@ const STYLE_CONFIGS: Record<SpeechStyle, SpeechConfig> = {
 // MAIN FUNCTION
 // =============================================================================
 
+// Audio element for Edge TTS playback
+let currentAudio: HTMLAudioElement | null = null;
+
 /**
- * Speak text using browser's built-in TTS with natural-sounding settings.
+ * Speak text using natural-sounding neural TTS (Edge TTS) with browser fallback.
  * 
  * @param text - The text to speak
  * @param style - The speaking style (affects rate, pitch, volume)
  * @param onStart - Called when speech starts
  * @param onEnd - Called when speech ends
+ * @param useEdgeTTS - Force Edge TTS (default: true for natural voice)
  * @returns Promise that resolves when speech is complete
  * 
  * @example
- * // Simple usage
+ * // Simple usage - uses natural Edge TTS by default
  * await speakNaturally("Welcome! Let's start learning.");
  * 
  * // With style
@@ -77,6 +80,73 @@ const STYLE_CONFIGS: Record<SpeechStyle, SpeechConfig> = {
 export async function speakNaturally(
   text: string,
   style: SpeechStyle = 'explanation',
+  onStart?: () => void,
+  onEnd?: () => void,
+  useEdgeTTS: boolean = true
+): Promise<void> {
+  // Stop any current speech
+  stopSpeaking();
+  
+  // Try Edge TTS first (natural neural voices)
+  if (useEdgeTTS && typeof window !== 'undefined') {
+    try {
+      console.log('[TTS] Using Edge TTS for natural voice...');
+      
+      const response = await fetch('/api/tts/edge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, style, voice: 'default' }),
+      });
+
+      if (response.ok) {
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        return new Promise((resolve) => {
+          currentAudio = new Audio(audioUrl);
+          
+          currentAudio.onplay = () => {
+            console.log('[TTS] Edge TTS started playing');
+            onStart?.();
+          };
+          
+          currentAudio.onended = () => {
+            console.log('[TTS] Edge TTS finished');
+            URL.revokeObjectURL(audioUrl);
+            currentAudio = null;
+            onEnd?.();
+            resolve();
+          };
+          
+          currentAudio.onerror = () => {
+            console.warn('[TTS] Edge TTS playback error, falling back to browser TTS');
+            URL.revokeObjectURL(audioUrl);
+            currentAudio = null;
+            // Fall back to browser TTS
+            speakWithBrowserTTS(text, style, onStart, onEnd).then(resolve);
+          };
+          
+          currentAudio.play().catch(() => {
+            // Autoplay blocked, fall back
+            speakWithBrowserTTS(text, style, onStart, onEnd).then(resolve);
+          });
+        });
+      }
+    } catch (error) {
+      console.warn('[TTS] Edge TTS failed, falling back to browser:', error);
+    }
+  }
+  
+  // Fallback to browser TTS
+  return speakWithBrowserTTS(text, style, onStart, onEnd);
+}
+
+/**
+ * Browser's built-in TTS (fallback when Edge TTS unavailable)
+ */
+async function speakWithBrowserTTS(
+  text: string,
+  style: SpeechStyle,
   onStart?: () => void,
   onEnd?: () => void
 ): Promise<void> {
@@ -132,9 +202,17 @@ export async function speakNaturally(
 // =============================================================================
 
 /**
- * Stop any currently playing speech.
+ * Stop any currently playing speech (both Edge TTS and browser TTS).
  */
 export function stopSpeaking(): void {
+  // Stop Edge TTS audio
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.src = '';
+    currentAudio = null;
+  }
+  
+  // Stop browser TTS
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }

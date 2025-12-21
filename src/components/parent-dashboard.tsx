@@ -18,8 +18,11 @@ import {
   Target,
   CheckCircle2,
   AlertCircle,
+  Brain,
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import { ParentStudentAnalytics } from './parent-student-analytics';
+import { ParentLearningMetricsPanel } from './parent-learning-metrics';
 
 interface ActivitySummary {
   date: string;
@@ -325,9 +328,32 @@ export function ParentDashboard() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="learning">
+            <TrendingUp className="w-4 h-4 mr-2" />
+            Learning Value
+          </TabsTrigger>
+          <TabsTrigger value="executive">
+            <Brain className="w-4 h-4 mr-2" />
+            Executive Function
+          </TabsTrigger>
           <TabsTrigger value="daily">Daily Activity</TabsTrigger>
           <TabsTrigger value="insights">AI Insights</TabsTrigger>
         </TabsList>
+
+        {/* Learning Value (LangSmith-style) Tab */}
+        <TabsContent value="learning" className="space-y-4">
+          <ParentLearningMetricsPanel />
+        </TabsContent>
+
+        {/* Executive Function Analytics Tab */}
+        <TabsContent value="executive" className="space-y-4">
+          {userId && (
+            <ParentStudentAnalytics 
+              studentUserId={userId}
+              studentName={userName || 'Your Student'}
+            />
+          )}
+        </TabsContent>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">

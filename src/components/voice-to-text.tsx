@@ -71,9 +71,17 @@ export default function VoiceToText({
     };
 
     recognition.onerror = (event: any) => {
+      // "aborted" is expected when user stops recording - don't treat as error
+      if (event.error === 'aborted') {
+        console.log('[Voice] Recognition aborted by user');
+        return;
+      }
+      
       console.error('Speech error:', event.error);
       if (event.error === 'not-allowed') {
         setError('Please allow microphone access in your browser settings.');
+      } else if (event.error === 'no-speech') {
+        setError('No speech detected. Please try again.');
       } else {
         setError('Speech recognition error. Please try again.');
       }

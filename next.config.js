@@ -16,6 +16,9 @@ const nextConfig = {
   compress: true,           // Enable gzip compression
   poweredByHeader: false,   // Remove "X-Powered-By: Next.js" header
   reactStrictMode: true,    // Enable React strict mode
+  
+  // Transpile ESM packages
+  transpilePackages: ['@lobehub/tts'],
 
   // ==========================================================================
   // SECURITY HEADERS

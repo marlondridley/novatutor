@@ -17,6 +17,7 @@ const TutorRequestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
+  let sessionId: string | null = null;
   
   try {
     // Rate limiting
@@ -55,6 +56,8 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single();
+      
+    sessionId = session?.id ?? null;
 
     // Call AI tutor
     const response = await connectWithSubjectSpecializedTutor({
@@ -91,7 +94,7 @@ export async function POST(req: NextRequest) {
     const tokensUsed = Math.ceil(response.tutorResponse.length / 4);
     const costUsd = (tokensUsed / 1000) * 0.002; // Approximate cost
 
-    if (session) {
+    if (sessionId) {
       await supabase
         .from('ai_sessions')
         .update({
@@ -100,9 +103,14 @@ export async function POST(req: NextRequest) {
           message_count: conversationHistory.length,
           tokens_used: tokensUsed,
           cost_usd: costUsd,
-          metadata: { conversation_id: conversation?.id },
+          metadata: {
+            conversation_id: conversation?.id,
+            latency_ms: duration,
+            conversation_depth: conversationHistory.length,
+            agent_route: `subject:${validatedData.subject}`,
+          },
         })
-        .eq('id', session.id);
+        .eq('id', sessionId);
     }
 
     logger.apiResponse('POST', '/api/tutor', 200, duration, {
@@ -116,7 +124,7 @@ export async function POST(req: NextRequest) {
       success: true,
       data: response,
       conversation_id: conversation?.id,
-      session_id: session?.id,
+      session_id: sessionId,
     });
 
   } catch (error: any) {
@@ -128,6 +136,25 @@ export async function POST(req: NextRequest) {
         { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       );
+    }
+
+    // ✅ Mark session as failed (helps parent-facing reliability metrics)
+    if (sessionId) {
+      try {
+        await (await createClient())
+          .from('ai_sessions')
+          .update({
+            ended_at: new Date().toISOString(),
+            duration_seconds: Math.floor(duration / 1000),
+            metadata: {
+              failed: true,
+              error_message: error?.message || String(error),
+            },
+          })
+          .eq('id', sessionId);
+      } catch {
+        // best-effort only
+      }
     }
 
     logger.error('Tutor API error', error, {

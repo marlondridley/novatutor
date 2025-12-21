@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { GameController } from "@/components/game-controller";
 import { useRouter } from "next/navigation";
+import { GameController } from "@/components/game-controller";
 import { Sparkles, BookOpen, GraduationCap, Trophy, Zap } from "lucide-react";
 
 /**
@@ -18,9 +18,7 @@ export default function DashboardPage() {
   // Handle voice input from the big red button
   const handleVoiceTranscript = useCallback((text: string) => {
     setLastTranscript(text);
-    // Navigate to tutor with the voice query
-    router.push(`/tutor?q=${encodeURIComponent(text)}`);
-  }, [router]);
+  }, []);
 
   return (
     <GameController onVoiceTranscript={handleVoiceTranscript}>

@@ -110,8 +110,14 @@ export async function checkRateLimit(
     return { success: true, remaining: 999, reset: 0 };
   }
 
-  const { success, remaining, reset } = await rateLimiters[type].limit(userId);
-  return { success, remaining, reset };
+  try {
+    const { success, remaining, reset } = await rateLimiters[type].limit(userId);
+    return { success, remaining, reset };
+  } catch (error) {
+    // If Redis fails at runtime, log and allow the request (fail open)
+    console.warn('[Redis] Rate limit check failed, allowing request:', error);
+    return { success: true, remaining: 999, reset: 0 };
+  }
 }
 
 /**

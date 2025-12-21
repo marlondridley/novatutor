@@ -44,21 +44,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Fetch user profile from database with caching
   const fetchUserProfile = async (userId: string, forceRefresh = false): Promise<UserProfile | null> => {
     try {
+      console.log('[Auth] fetchUserProfile called for:', userId, 'forceRefresh:', forceRefresh);
+      
       // Check cache first
       if (!forceRefresh) {
         const cached = profileCache.current.get(userId);
         if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+          console.log('[Auth] Using cached profile');
           return cached.data;
         }
       }
 
       // First check if we have a valid session
+      console.log('[Auth] Checking session...');
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) {
+        console.log('[Auth] No active session');
         return null;
       }
       
       // Try query with shorter timeout
+      console.log('[Auth] Fetching profile from Supabase...');
       const { data, error } = await Promise.race([
         supabase.from('profiles').select('*').eq('id', userId).single(),
         new Promise<never>((_, reject) => 
@@ -67,35 +73,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       if (error || !data) {
+        console.error('[Auth] Profile query error:', error);
         return null;
       }
       
+      console.log('[Auth] Profile fetched successfully');
       profileCache.current.set(userId, { data, timestamp: Date.now() });
       return data;
-    } catch {
+    } catch (err) {
+      console.error('[Auth] fetchUserProfile exception:', err);
       return null;
     }
   };
 
   useEffect(() => {
+    // Safety timeout - force loading to false after 10 seconds
+    const safetyTimeout = setTimeout(() => {
+      console.warn('[Auth] Safety timeout reached - forcing loading to false');
+      setLoading(false);
+    }, 10000);
+
     // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('[Auth] Session check:', !!session, session?.user?.email);
       setSupabaseUser(session?.user ?? null);
       if (session?.user) {
+        console.log('[Auth] Fetching profile for:', session.user.id);
         fetchUserProfile(session.user.id)
           .then((profile) => {
+            console.log('[Auth] Profile fetched:', !!profile);
             setUser(profile);
             setLoading(false);
+            clearTimeout(safetyTimeout);
           })
-          .catch(() => {
+          .catch((err) => {
+            console.error('[Auth] Profile fetch error:', err);
             setLoading(false);
+            clearTimeout(safetyTimeout);
           });
       } else {
+        console.log('[Auth] No session, setting loading to false');
         setLoading(false);
+        clearTimeout(safetyTimeout);
       }
-    }).catch(() => {
+    }).catch((err) => {
+      console.error('[Auth] Session check error:', err);
       setLoading(false);
+      clearTimeout(safetyTimeout);
     });
+
+    return () => clearTimeout(safetyTimeout);
 
     // Listen for auth changes
     const {

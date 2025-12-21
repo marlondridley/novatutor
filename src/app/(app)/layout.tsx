@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import Link from "next/link";
@@ -25,11 +26,11 @@ import {
   LogOut,
   Sparkles,
   Shield,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { UserNav } from "@/components/user-nav";
-import { FloatingMicButton } from "@/components/floating-mic-button";
 import { AppStateProvider, AppStateContext } from "@/context/app-state-context";
 import { useAuth } from "@/context/auth-context";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -37,6 +38,7 @@ import { useSubscription } from "@/hooks/use-subscription";
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Today's Progress" },
   { href: "/tutor", icon: MessageSquare, label: "My Coach" },
+  { href: "/progress", icon: TrendingUp, label: "My Progress" },
   { href: "/learning-path", icon: GitBranch, label: "My Learning Journey" },
   { href: "/summarizer", icon: Sparkles, label: "Smart Tools" },
   { href: "/test-generator", icon: FileQuestion, label: "Test Generator" },
@@ -183,9 +185,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
             </div>
           </header>
           {children}
-          
-          {/* 🎤 Floating Mic Button - Always visible for kids! */}
-          <FloatingMicButton />
         </SidebarInset>
       </SidebarProvider>
   );

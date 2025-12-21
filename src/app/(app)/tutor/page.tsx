@@ -18,6 +18,8 @@ import { MessageCircle, ClipboardList, BarChart3, Sparkles } from "lucide-react"
  * - Homework Planner
  * - Progress Dashboard
  * - Onboarding & Streaks
+ * 
+ * Last updated: 2025-12-20
  */
 export default function TutorPage() {
   const searchParams = useSearchParams();
@@ -57,7 +59,7 @@ export default function TutorPage() {
         {/* Chat Tab */}
         <TabsContent value="chat" className="flex-1">
           <div className="h-[calc(100vh-280px)]">
-            <EducationalAssistantChat 
+            <EducationalAssistantChat
               initialQuery={initialQuery || undefined}
               pageContext={pageContext || undefined}
             />

@@ -9,23 +9,19 @@
 
 import { ReactNode, useState, useCallback, useRef, useEffect } from 'react';
 import {
-  Home,
   BookOpen,
   GraduationCap,
-  Settings,
   Mic,
-  MessageCircle,
   Sparkles,
   Trophy,
-  PenTool,
   Calculator,
   TestTube,
   ScrollText,
-  Shield,
+  Brain,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { getEducationalAssistantResponse } from '@/lib/actions';
+import { getEducationalAssistantResponse, getCoachingResponse } from '@/lib/actions';
 import { speakNaturally } from '@/lib/natural-speech';
 import { ControllerPlanDisplay } from './controller-plan-display';
 import { 
@@ -44,13 +40,26 @@ import {
 import { useBehaviorFlags } from '@/hooks/use-behavior-flags';
 import { useProgressiveEnhancement, triggerHaptic } from '@/hooks/use-progressive-enhancement';
 import { getAgeOptimizations } from '@/config/age-optimizations';
+import { useAuth } from '@/context/auth-context';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
 interface PlanTask {
   task: string;
   estimatedTime: number;
   difficulty: 'easy' | 'medium' | 'hard';
   completed?: boolean;
+  subject?: string;
 }
+
+// Quick subject options for plan creation
+const QUICK_SUBJECTS = [
+  { id: 'math', label: '📐 Math', icon: '📐' },
+  { id: 'science', label: '🔬 Science', icon: '🔬' },
+  { id: 'reading', label: '📖 Reading', icon: '📖' },
+  { id: 'history', label: '🏛️ History', icon: '🏛️' },
+  { id: 'writing', label: '✍️ Writing', icon: '✍️' },
+  { id: 'other', label: '📚 Other', icon: '📚' },
+];
 
 interface GameControllerProps {
   children?: ReactNode;
@@ -64,13 +73,52 @@ interface GameControllerProps {
 
 export function GameController({ children, className, onVoiceTranscript, onSubjectChange, plan, onStartQuest, onTaskComplete }: GameControllerProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [activeButton, setActiveButton] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<SubjectContext>('general');
   const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string, isTyping?: boolean}>>([]);
   const [isAIResponding, setIsAIResponding] = useState(false);
   const [announcement, setAnnouncement] = useState<string>(''); // For screen readers
-  const recognitionRef = useRef<any>(null);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [micPermission, setMicPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  
+  // 📋 INTERNAL PLAN STATE - Allow students to create plans in-controller
+  const [internalPlan, setInternalPlan] = useState<PlanTask[]>([]);
+  const [showPlanSetup, setShowPlanSetup] = useState(false);
+  const [planSubjects, setPlanSubjects] = useState<string[]>([]);
+  const [planTopics, setPlanTopics] = useState<Record<string, string>>({});
+  const [planDuration, setPlanDuration] = useState<Record<string, number>>({});
+  
+  // Use internal plan if no external plan provided
+  const activePlan = plan && plan.length > 0 ? plan : internalPlan;
+  
+  // 🎤 REACT-SPEECH-RECOGNITION HOOK - Much more reliable than raw Web Speech API
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+    isMicrophoneAvailable,
+  } = useSpeechRecognition();
+  
+  // Track if we have an unprocessed transcript
+  const lastProcessedTranscript = useRef<string>('');
+  
+  // Track the 2-second buffer after button release
+  const [isInBufferPeriod, setIsInBufferPeriod] = useState(false);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
+  
+  // 🧠 COACHING MODE - Toggle between tutor mode and executive function coaching
+  const [isCoachingMode, setIsCoachingMode] = useState(false);
+  const [coachingSession, setCoachingSession] = useState<{
+    confidenceLevel?: number;
+    focusGoal?: string;
+    sessionStartTime?: Date;
+  }>({});
   
   // 🎯 BEHAVIOR FLAGS - Loaded from Parent Settings!
   const { behaviorFlags, setBehaviorFlags } = useBehaviorFlags();
@@ -80,6 +128,170 @@ export function GameController({ children, className, onVoiceTranscript, onSubje
   
   // 🎂 AGE-BASED OPTIMIZATIONS - Adapt to student's age
   const ageOptimizations = getAgeOptimizations(behaviorFlags.gradeLevel);
+  const hasPremiumVoice = user?.premium_voice_enabled === true;
+
+  // Mic permission status (best-effort; some browsers don’t support Permissions API for mic)
+  useEffect(() => {
+    let cancelled = false;
+
+    async function check() {
+      try {
+        const perms = (navigator as any).permissions;
+        if (!perms?.query) return;
+        const status = await perms.query({ name: 'microphone' });
+        if (cancelled) return;
+        setMicPermission(status.state === 'granted' ? 'granted' : status.state === 'denied' ? 'denied' : 'unknown');
+        status.onchange = () => {
+          setMicPermission(status.state === 'granted' ? 'granted' : status.state === 'denied' ? 'denied' : 'unknown');
+        };
+      } catch {
+        // ignore
+      }
+    }
+
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const requestMicPermission = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      setMicPermission('granted');
+      setAnnouncement('Microphone enabled');
+    } catch (e) {
+      console.error('Mic permission request failed:', e);
+      setMicPermission('denied');
+      setAnnouncement('Microphone blocked');
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: "I can't hear you yet—please allow microphone access in your browser, then try again.",
+        },
+      ]);
+    }
+  }, []);
+
+  // Keep latest values in refs to avoid stale closures inside speech callbacks
+  const coachingModeRef = useRef(isCoachingMode);
+  const messagesRef = useRef(messages);
+  const coachingSessionRef = useRef(coachingSession);
+  const selectedSubjectRef = useRef(selectedSubject);
+  const uploadedImageRef = useRef(uploadedImage);
+  const behaviorFlagsRef = useRef(behaviorFlags);
+  const handleTranscriptRef = useRef<(transcript: string) => Promise<void>>();
+
+  useEffect(() => { coachingModeRef.current = isCoachingMode; }, [isCoachingMode]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { coachingSessionRef.current = coachingSession; }, [coachingSession]);
+  useEffect(() => { selectedSubjectRef.current = selectedSubject; }, [selectedSubject]);
+  useEffect(() => { uploadedImageRef.current = uploadedImage; }, [uploadedImage]);
+  useEffect(() => { behaviorFlagsRef.current = behaviorFlags; }, [behaviorFlags]);
+
+  const handleTranscript = useCallback(async (transcriptRaw: string) => {
+    const transcript = (transcriptRaw || '').trim();
+    console.log('[handleTranscript] Called with:', transcript);
+    if (!transcript) {
+      console.log('[handleTranscript] Empty transcript, ignoring');
+      return;
+    }
+
+    // Add user message to chat
+    console.log('[handleTranscript] Adding user message to chat');
+    setMessages(prev => [...prev, { role: 'user', content: transcript }]);
+
+    // 🎯 Choose AI mode: Coaching or Tutoring
+    setIsAIResponding(true);
+    try {
+      let aiMessage = '';
+
+      const isCoach = coachingModeRef.current;
+      console.log('[handleTranscript] Mode:', isCoach ? 'COACHING' : 'TUTOR');
+      const conversationHistory = messagesRef.current.slice(-6); // last 3 exchanges
+
+      if (isCoach) {
+        // 🧠 COACHING MODE
+        console.log('[handleTranscript] Calling getCoachingResponse...');
+        const response = await getCoachingResponse({
+          studentQuestion: transcript,
+          conversationHistory,
+          sessionContext: {
+            confidenceLevel: coachingSessionRef.current.confidenceLevel,
+            focusGoal: coachingSessionRef.current.focusGoal,
+            subject: selectedSubjectRef.current,
+          },
+        });
+
+        console.log('[handleTranscript] Coaching response:', response);
+        if (response.success && response.data) {
+          aiMessage = response.data.coachResponse;
+
+          // Extract confidence level if mentioned (e.g., "I'm at a 5")
+          const confidenceMatch = transcript.match(/(\d+)\s*(?:\/10|out of 10)?/i);
+          if (confidenceMatch) {
+            const level = parseInt(confidenceMatch[1]);
+            if (level >= 1 && level <= 10) {
+              setCoachingSession(prev => ({ ...prev, confidenceLevel: level }));
+            }
+          }
+        }
+      } else {
+        // 📚 TUTOR MODE
+        console.log('[handleTranscript] Calling getEducationalAssistantResponse...');
+        const response = await getEducationalAssistantResponse({
+          subject: behaviorFlagsRef.current.subject,
+          studentQuestion: transcript,
+          homeworkImage: uploadedImageRef.current || undefined,
+          // Context flags for adaptive behavior
+          mode: 'deep', // Always use deep mode for controller (voice + screen)
+          grade: user?.grade_level || undefined,
+          confidenceLevel: 'low', // Default to low for more support
+          efNeeds: ['planning', 'checking work'], // Default EF support
+        });
+
+        console.log('[handleTranscript] Tutor response:', response);
+        if (response.success && response.data) {
+          aiMessage = response.data.tutorResponse;
+
+          // Clear uploaded image after processing
+          if (uploadedImageRef.current) {
+            setUploadedImage(null);
+            playSuccess();
+          }
+        } else if (!response.success) {
+          console.error('[handleTranscript] Tutor response failed:', response.error);
+        }
+      }
+
+      if (aiMessage) {
+        console.log('[handleTranscript] Got AI message, applying guardrails...');
+        const { response: safeResponse, warnings } = applyGuardrails(aiMessage, behaviorFlagsRef.current);
+        if (warnings.length > 0) console.log('[Behavior Control]', warnings);
+        console.log('[handleTranscript] Adding AI message to chat');
+        setMessages(prev => [...prev, { role: 'assistant', content: safeResponse }]);
+        console.log('[handleTranscript] Speaking response...');
+        await speakNaturally(safeResponse, 'question');
+      } else {
+        console.warn('[handleTranscript] No AI message received');
+      }
+    } catch (error) {
+      console.error('[handleTranscript] Error:', error);
+      setMessages(prev => [...prev, { role: 'assistant', content: "I'm sorry, I didn't catch that. Could you try again?" }]);
+    } finally {
+      setIsAIResponding(false);
+    }
+
+    // Optional callback (dashboard uses this only to show "You said: ...")
+    onVoiceTranscript?.(transcript);
+  }, []); // Empty dependencies - use refs for all state
+
+  // Keep handleTranscript ref updated
+  useEffect(() => {
+    handleTranscriptRef.current = handleTranscript;
+  }, [handleTranscript]);
   
   // Override modality and verbosity for controller mode
   useEffect(() => {
@@ -90,102 +302,186 @@ export function GameController({ children, className, onVoiceTranscript, onSubje
     }));
   }, []);
 
-  // Initialize speech recognition
+  // 🎤 REACT-SPEECH-RECOGNITION: Process transcript when listening stops
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'en-US';
-
-      recognitionRef.current.onresult = async (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setIsRecording(false);
-
-        // Add user message to chat
-        setMessages(prev => [...prev, { role: 'user', content: transcript }]);
-
-        // 🎯 Use behavior flags (NOT dynamic prompts!)
-        setIsAIResponding(true);
-        try {
-          const response = await getEducationalAssistantResponse({
-            subject: behaviorFlags.subject,
-            studentQuestion: transcript
-          });
-
-          if (response.success && response.data) {
-            let aiMessage = response.data.tutorResponse;
-            
-            // Apply guardrails (post-processing filters, NOT prompt changes!)
-            const { response: safeResponse, warnings } = applyGuardrails(aiMessage, behaviorFlags);
-            
-            // Log warnings for debugging (not shown to user)
-            if (warnings.length > 0) {
-              console.log('[Behavior Control]', warnings);
-            }
-            
-            setMessages(prev => [...prev, { role: 'assistant', content: safeResponse }]);
-
-            // Speak the response
-            await speakNaturally(safeResponse, 'question');
-          }
-        } catch (error) {
-          console.error('AI response error:', error);
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: "I'm sorry, I didn't catch that. Could you try again?"
-          }]);
-        }
-        setIsAIResponding(false);
-
-        onVoiceTranscript?.(transcript);
-      };
-
-      recognitionRef.current.onerror = () => setIsRecording(false);
-      recognitionRef.current.onend = () => setIsRecording(false);
+    // When listening stops and we have a new transcript, process it
+    // ONLY process if we're not in the buffer period (to avoid duplicate processing)
+    if (!listening && !isInBufferPeriod && transcript && transcript !== lastProcessedTranscript.current) {
+      console.log('[Speech] Got transcript:', transcript);
+      lastProcessedTranscript.current = transcript;
+      setIsRecording(false);
+      
+      // Process the transcript through our AI handler
+      if (handleTranscriptRef.current) {
+        console.log('[Speech] Processing transcript once...');
+        handleTranscriptRef.current(transcript);
+      }
+      
+      // Reset for next recording
+      resetTranscript();
     }
-    return () => recognitionRef.current?.abort();
-  }, [onVoiceTranscript]);
+  }, [listening, transcript, resetTranscript, isInBufferPeriod]);
+
+  // Sync isRecording with listening state
+  useEffect(() => {
+    if (listening !== isRecording) {
+      setIsRecording(listening);
+    }
+  }, [listening, isRecording]);
 
   // Push-to-talk handlers with audio + haptic feedback
   const startRecording = useCallback(() => {
-    if (recognitionRef.current && !isRecording) {
+    console.log('[Big TALK] startRecording called, browserSupport:', browserSupportsSpeechRecognition, 'listening:', listening);
+    
+    // Primary: react-speech-recognition (wraps Web Speech API)
+    if (browserSupportsSpeechRecognition && !listening) {
       try {
-        recognitionRef.current.start();
+        console.log('[Big TALK] Starting speech recognition via react-speech-recognition...');
+        
+        // Cancel any pending delayed stop from previous recording
+        if (stopDelayRef.current) {
+          clearTimeout(stopDelayRef.current);
+          stopDelayRef.current = null;
+        }
+        
+        // Reset previous transcript before starting new recording
+        resetTranscript();
+        lastProcessedTranscript.current = '';
+        
+        // Start listening
+        SpeechRecognition.startListening({ 
+          continuous: false,
+          language: 'en-US' 
+        });
+        
         setIsRecording(true);
+        if (capabilities.hasAudioSupport && ageOptimizations.audioEnabled) playListeningStart();
+        triggerHaptic(capabilities, [10, 50, 30]);
+        setAnnouncement('Listening for your question');
+        console.log('[Big TALK] Speech recognition STARTED');
+        
+      } catch (e: any) { 
+        console.error('[Big TALK] Failed to start recognition:', e);
+        setIsRecording(false);
+      }
+      return;
+    }
+
+    // Fallback: Premium Voice ONLY (when Web Speech isn't available)
+    if (!browserSupportsSpeechRecognition && hasPremiumVoice && !isRecording) {
+      (async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mediaRecorder = new MediaRecorder(stream, {
+            mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : undefined,
+          } as any);
+
+          audioChunksRef.current = [];
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunksRef.current.push(e.data);
+          };
+
+          mediaRecorderRef.current = mediaRecorder;
+          mediaRecorder.start(250);
+          setIsRecording(true);
+          if (capabilities.hasAudioSupport && ageOptimizations.audioEnabled) playListeningStart();
+          triggerHaptic(capabilities, [10, 50, 30]);
+          setAnnouncement('Recording…');
+        } catch (e) {
+          console.error('Premium voice recording failed:', e);
+          setAnnouncement('Microphone not available');
+        }
+      })();
+      return;
+    }
+
+    // No supported voice path
+    if (!browserSupportsSpeechRecognition) {
+      setAnnouncement('Voice input is not supported in this browser');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: "Sorry, your browser doesn't support voice input. Try Chrome, Edge, or Safari."
+      }]);
+    }
+  }, [listening, browserSupportsSpeechRecognition, isRecording, capabilities, resetTranscript, hasPremiumVoice, ageOptimizations.audioEnabled]);
+
+  // Ref to track delayed stop timeout
+  const stopDelayRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const stopRecording = useCallback(() => {
+    console.log('[Big TALK] stopRecording called, listening:', listening);
+    
+    // Primary: react-speech-recognition - wait 2 seconds after release to capture trailing words
+    if (listening) {
+      // Clear any existing delayed stop
+      if (stopDelayRef.current) {
+        clearTimeout(stopDelayRef.current);
+      }
+      
+      console.log('[Big TALK] Waiting 2 seconds to capture trailing speech...');
+      setAnnouncement('Still listening... keep talking!');
+      setIsInBufferPeriod(true);
+      
+      // Delay stop by 2 seconds to capture end of sentence
+      stopDelayRef.current = setTimeout(() => {
+        SpeechRecognition.stopListening();
+        console.log('[Big TALK] Speech recognition STOPPED (after 2s delay)');
+        setIsInBufferPeriod(false);
         
         // Audio feedback (if supported and enabled for age)
         if (capabilities.hasAudioSupport && ageOptimizations.audioEnabled) {
-          playListeningStart(); // 🔊 Rising tone
+          playListeningStop(); // 🔊 Falling tone
         }
         
-        // Haptic feedback (start pattern: short-long)
-        triggerHaptic(capabilities, [10, 50, 30]);
+        // Haptic feedback (stop pattern: long-short)
+        triggerHaptic(capabilities, [30, 50, 10]);
         
         // Screen reader announcement
-        setAnnouncement('Listening for your question');
-      } catch (e) { /* already started */ }
+        setAnnouncement('Processing your question');
+        
+        stopDelayRef.current = null;
+      }, 2000); // 2 second delay
+      
+      return; // Don't do immediate feedback yet
     }
-  }, [isRecording, capabilities]);
-
-  const stopRecording = useCallback(() => {
-    if (recognitionRef.current && isRecording) {
-      recognitionRef.current.stop();
+    // Fallback: Premium Voice ONLY (when Web Speech isn't available)
+    if (!browserSupportsSpeechRecognition && hasPremiumVoice && isRecording && mediaRecorderRef.current) {
+      const recorder = mediaRecorderRef.current;
       setIsRecording(false);
-      
-      // Audio feedback (if supported and enabled for age)
-      if (capabilities.hasAudioSupport && ageOptimizations.audioEnabled) {
-        playListeningStop(); // 🔊 Falling tone
-      }
-      
-      // Haptic feedback (stop pattern: long-short)
+      if (capabilities.hasAudioSupport && ageOptimizations.audioEnabled) playListeningStop();
       triggerHaptic(capabilities, [30, 50, 10]);
-      
-      // Screen reader announcement
-      setAnnouncement('Processing your question');
+      setAnnouncement('Transcribing…');
+
+      recorder.onstop = async () => {
+        try {
+          recorder.stream.getTracks().forEach(t => t.stop());
+          const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+          if (audioBlob.size < 1000) {
+            setAnnouncement('Recording too short');
+            return;
+          }
+
+          const form = new FormData();
+          form.append('audio', new File([audioBlob], 'audio.webm', { type: audioBlob.type }));
+          form.append('language', 'en');
+
+          const res = await fetch('/api/voice/transcribe-premium', { method: 'POST', body: form });
+          if (!res.ok) throw new Error('Transcription failed');
+          const data = await res.json();
+          const text = (data.text || '').toString();
+          setAnnouncement('Processing your question');
+          if (handleTranscriptRef.current) {
+            handleTranscriptRef.current(text);
+          }
+        } catch (e) {
+          console.error('Premium transcription failed:', e);
+          setAnnouncement('Could not transcribe. Try again.');
+        }
+      };
+
+      try { recorder.stop(); } catch {}
     }
-  }, [isRecording, capabilities]);
+  }, [listening, isRecording, capabilities, browserSupportsSpeechRecognition, hasPremiumVoice, ageOptimizations.audioEnabled]);
 
   // Button press animation with audio + haptic feedback
   const handleButtonPress = (name: string, action: () => void) => {
@@ -234,6 +530,63 @@ export function GameController({ children, className, onVoiceTranscript, onSubje
     const config = SUBJECT_CONFIG[subject];
     console.log(`[Subject Change] ${subject} (${config.color})`);
   }, [setBehaviorFlags, onSubjectChange, capabilities]);
+
+  // 📋 PASTE IMAGE - Ctrl+V to paste images from clipboard
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          e.preventDefault();
+          const blob = items[i].getAsFile();
+          if (blob) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const dataUrl = event.target?.result as string;
+              setUploadedImage(dataUrl);
+              playConfirm(); // 🔊 Confirmation sound
+              setAnnouncement('Image pasted! Press talk button to ask about it.');
+            };
+            reader.readAsDataURL(blob);
+          }
+          break;
+        }
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, []);
+
+  // 🖼️ DRAG AND DROP - Drag images into the controller
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0] && files[0].type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        setUploadedImage(dataUrl);
+        playConfirm(); // 🔊 Confirmation sound
+        setAnnouncement('Image dropped! Press talk button to ask about it.');
+      };
+      reader.readAsDataURL(files[0]);
+    }
+  }, []);
 
   // ⌨️ KEYBOARD NAVIGATION - D-pad works with arrow keys!
   useEffect(() => {
@@ -349,11 +702,18 @@ export function GameController({ children, className, onVoiceTranscript, onSubje
           {/* Joy-Con Controls */}
           <div className="relative z-10 h-full flex flex-col items-center justify-between py-8 md:py-12 px-6">
             
-            {/* Minus Button */}
-            <button 
-              className="w-10 h-3 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors shadow-lg"
-              aria-label="Options menu"
-            />
+            {/* Parent Portal Button (top minus button) */}
+            <button
+              onClick={() => handleButtonPress('parent-portal', () => router.push('/parent-dashboard'))}
+              className="flex flex-col items-center justify-center gap-1 hover:opacity-80 transition-opacity"
+              aria-label="Parent Portal"
+              title="Parent Portal"
+            >
+              <div className="w-10 h-3 bg-slate-800 rounded-full shadow-lg" />
+              <span className="text-[11px] sm:text-xs md:text-sm text-white font-black tracking-wide">
+                PORTAL
+              </span>
+            </button>
             
             {/* Analog Stick */}
             <div 
@@ -425,160 +785,454 @@ export function GameController({ children, className, onVoiceTranscript, onSubje
             </div>
 
             {/* D-Pad Labels - Clear Subject Names */}
-            <div className="mt-2 text-[9px] sm:text-[10px] text-white/90 text-center font-bold space-y-0.5">
+            <div className="mt-2 text-sm sm:text-base md:text-lg text-white/90 text-center font-black tracking-wide space-y-1">
               <div className={cn("transition-colors", selectedSubject === 'math' && 'text-blue-300')}>↑ MATH</div>
               <div className={cn("transition-colors", selectedSubject === 'science' && 'text-green-300')}>↓ SCIENCE</div>
               <div className={cn("transition-colors", selectedSubject === 'reading' && 'text-purple-300')}>← READING</div>
               <div className={cn("transition-colors", selectedSubject === 'history' && 'text-orange-300')}>→ HISTORY</div>
             </div>
 
-            {/* ===== ADMINISTRATOR BUTTON ===== */}
-            <button
-              onClick={() => handleButtonPress('admin', () => router.push('/parent-settings'))}
-              className={cn(
-                "w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full shadow-lg flex flex-col items-center justify-center transition-all border-4",
-                activeButton === 'admin'
-                  ? "bg-gradient-to-br from-amber-400 to-amber-600 border-amber-200 scale-95"
-                  : "bg-gradient-to-br from-amber-500 to-amber-700 border-amber-300 hover:from-amber-400 hover:to-amber-600 hover:scale-105"
-              )}
-              title="Administrator Settings"
-            >
-              <Shield className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
-              <span className="text-[8px] sm:text-[9px] text-white font-bold mt-0.5">ADMIN</span>
-            </button>
+            {/* ===== MODE TOGGLE BUTTONS ===== */}
+            <div className="flex flex-col gap-3">
+              {/* Coaching Mode Toggle */}
+              <button
+                onClick={() => {
+                  handleButtonPress('coaching', () => {
+                    setIsCoachingMode(!isCoachingMode);
+                    if (!isCoachingMode) {
+                      // Entering coaching mode
+                      setCoachingSession({ sessionStartTime: new Date() });
+                      setMessages([]);
+                      playConfirm();
+                      setAnnouncement('Coaching mode activated. I\'m here to help you build executive function skills!');
+                    } else {
+                      // Exiting coaching mode
+                      setCoachingSession({});
+                      playClick();
+                      setAnnouncement('Tutor mode activated. Let\'s learn together!');
+                    }
+                  });
+                }}
+                className={cn(
+                  "w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full shadow-lg flex flex-col items-center justify-center transition-all border-4",
+                  isCoachingMode
+                    ? "bg-gradient-to-br from-cyan-400 to-cyan-600 border-cyan-200 ring-4 ring-cyan-300"
+                    : activeButton === 'coaching'
+                    ? "bg-gradient-to-br from-slate-500 to-slate-700 border-slate-300 scale-95"
+                    : "bg-gradient-to-br from-slate-600 to-slate-800 border-slate-400 hover:from-slate-500 hover:to-slate-700 hover:scale-105"
+                )}
+                title={isCoachingMode ? "Coaching Mode Active" : "Switch to Coaching Mode"}
+                aria-label={isCoachingMode ? "Coaching mode active, click to switch to tutor mode" : "Click to switch to coaching mode"}
+              >
+                <Brain className={cn(
+                  "w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8",
+                  isCoachingMode ? "text-white animate-pulse" : "text-white"
+                )} />
+                <span className={cn(
+                  "text-[10px] sm:text-[11px] md:text-xs font-black mt-1 tracking-wide",
+                  isCoachingMode ? "text-white" : "text-white/80"
+                )}>
+                  {isCoachingMode ? "COACH" : "COACH"}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* ==================== CENTER SCREEN ==================== */}
-        <div className="flex-1 relative bg-[#1a1a1a] border-y-8 border-[#2a2a2a]">
+        <div 
+          className="flex-1 relative bg-[#1a1a1a] border-y-8 border-[#2a2a2a]"
+          ref={dropZoneRef}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           {/* Screen Display - Clean gradient */}
-          <div className="absolute inset-0 overflow-hidden bg-gradient-to-br from-purple-50 via-white to-amber-50 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900">
+          <div className={cn(
+            "absolute inset-0 overflow-hidden bg-gradient-to-br from-purple-50 via-white to-amber-50 dark:from-slate-800 dark:via-slate-850 dark:to-slate-900",
+            isDragging && "ring-4 ring-blue-500 ring-inset"
+          )}>
             
-            {/* Screen Content */}
-            <div className="h-full overflow-y-auto pb-16">
-              {plan && plan.length > 0 ? (
+            {/* 📸 IMAGE DROP ZONE OVERLAY */}
+            {isDragging && (
+              <div className="absolute inset-0 bg-blue-500/20 backdrop-blur-sm flex items-center justify-center z-50">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-2xl text-center max-w-sm">
+                  <div className="text-6xl mb-4">📸</div>
+                  <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mb-2">
+                    Drop Image Here!
+                  </div>
+                  <div className="text-sm text-slate-600 dark:text-slate-300">
+                    I'll help you with your homework
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 🖼️ UPLOADED IMAGE PREVIEW */}
+            {uploadedImage && !isDragging && (
+              <div className="absolute top-4 right-4 z-40">
+                <div className="relative bg-white dark:bg-slate-800 rounded-lg shadow-xl p-2 border-4 border-green-500">
+                  <img 
+                    src={uploadedImage} 
+                    alt="Uploaded homework" 
+                    className="w-32 h-32 object-contain rounded"
+                  />
+                  <button
+                    onClick={() => {
+                      setUploadedImage(null);
+                      playClick();
+                    }}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                    aria-label="Remove image"
+                  >
+                    ✕
+                  </button>
+                  <div className="text-[10px] text-green-600 dark:text-green-400 font-bold text-center mt-1">
+                    📸 Ready!
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Screen Content - Always show chatbox */}
+            <div className="h-full flex flex-col pb-16">
+              {activePlan && activePlan.length > 0 ? (
                 <ControllerPlanDisplay
-                  plan={plan}
+                  plan={activePlan}
                   onStartQuest={onStartQuest}
-                  onTaskComplete={onTaskComplete}
+                  onTaskComplete={(idx) => {
+                    onTaskComplete?.(idx);
+                    // Update internal plan if using it
+                    if (!plan || plan.length === 0) {
+                      setInternalPlan(prev => prev.map((t, i) => 
+                        i === idx ? { ...t, completed: true } : t
+                      ));
+                    }
+                  }}
                 />
-              ) : messages.length > 0 ? (
-                <div className="p-4 space-y-4">
-                  {messages.map((message, index) => (
-                    <div
-                      key={index}
-                      className={cn(
-                        "flex",
-                        message.role === 'user' ? 'justify-end' : 'justify-start'
-                      )}
-                    >
-                      <div
+              ) : showPlanSetup ? (
+                /* 📋 QUICK PLAN SETUP */
+                <div className="p-4 space-y-4 overflow-y-auto">
+                  <div className="text-center mb-4">
+                    <h2 className="text-2xl font-bold text-purple-600">📋 Let's Make a Plan!</h2>
+                    <p className="text-sm text-muted-foreground">What are you studying today?</p>
+                  </div>
+                  
+                  {/* Subject Selection */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {QUICK_SUBJECTS.map(subject => (
+                      <button
+                        key={subject.id}
+                        onClick={() => {
+                          if (planSubjects.includes(subject.id)) {
+                            setPlanSubjects(prev => prev.filter(s => s !== subject.id));
+                          } else {
+                            setPlanSubjects(prev => [...prev, subject.id]);
+                          }
+                        }}
                         className={cn(
-                          "max-w-[80%] p-3 rounded-lg text-sm",
-                          message.role === 'user'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-slate-700 text-white'
+                          "p-3 rounded-xl font-bold text-sm transition-all",
+                          planSubjects.includes(subject.id)
+                            ? "bg-purple-500 text-white shadow-lg scale-105"
+                            : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"
                         )}
                       >
-                        {message.content}
-                      </div>
-                    </div>
-                  ))}
-                  {isAIResponding && (
-                    <div className="flex justify-start">
-                      <div className="bg-slate-700 text-white p-3 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1">
-                            <div className="w-2 h-2 bg-white rounded-full thinking-dot" />
-                            <div className="w-2 h-2 bg-white rounded-full thinking-dot" />
-                            <div className="w-2 h-2 bg-white rounded-full thinking-dot" />
+                        <div className="text-2xl mb-1">{subject.icon}</div>
+                        {subject.label.split(' ')[1]}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Topic & Duration for each selected subject */}
+                  {planSubjects.length > 0 && (
+                    <div className="space-y-3 mt-4">
+                      {planSubjects.map(subjectId => {
+                        const subject = QUICK_SUBJECTS.find(s => s.id === subjectId);
+                        return (
+                          <div key={subjectId} className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xl">{subject?.icon}</span>
+                              <span className="font-bold">{subject?.label.split(' ')[1]}</span>
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="What are you working on?"
+                              value={planTopics[subjectId] || ''}
+                              onChange={(e) => setPlanTopics(prev => ({ ...prev, [subjectId]: e.target.value }))}
+                              className="w-full p-2 rounded-lg border text-sm mb-2"
+                            />
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">Time:</span>
+                              <select
+                                value={planDuration[subjectId] || 30}
+                                onChange={(e) => setPlanDuration(prev => ({ ...prev, [subjectId]: parseInt(e.target.value) }))}
+                                className="p-2 rounded-lg border text-sm"
+                              >
+                                <option value={15}>15 min</option>
+                                <option value={20}>20 min</option>
+                                <option value={30}>30 min</option>
+                                <option value={45}>45 min</option>
+                                <option value={60}>1 hour</option>
+                                <option value={90}>1.5 hours</option>
+                              </select>
+                            </div>
                           </div>
-                          <span className="text-sm">🤔 Thinking...</span>
-                        </div>
-                      </div>
+                        );
+                      })}
                     </div>
                   )}
+                  
+                  {/* Create Plan Button */}
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => setShowPlanSetup(false)}
+                      className="flex-1 py-3 px-6 bg-slate-200 dark:bg-slate-700 rounded-xl font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Create the plan
+                        const newPlan: PlanTask[] = planSubjects.map(subjectId => ({
+                          task: planTopics[subjectId] || `${QUICK_SUBJECTS.find(s => s.id === subjectId)?.label.split(' ')[1]} homework`,
+                          subject: subjectId,
+                          estimatedTime: planDuration[subjectId] || 30,
+                          difficulty: 'medium' as const,
+                          completed: false,
+                        }));
+                        setInternalPlan(newPlan);
+                        setShowPlanSetup(false);
+                        // Reset form
+                        setPlanSubjects([]);
+                        setPlanTopics({});
+                        setPlanDuration({});
+                      }}
+                      disabled={planSubjects.length === 0}
+                      className={cn(
+                        "flex-1 py-3 px-6 rounded-xl font-bold text-white transition-all",
+                        planSubjects.length > 0
+                          ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                          : "bg-gray-400 cursor-not-allowed"
+                      )}
+                    >
+                      🎸 Let's Go!
+                    </button>
+                  </div>
                 </div>
-              ) : children || (
-                <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-8">
-                  <Sparkles className="w-24 h-24 text-purple-500 animate-bounce" />
-                  <h2 className="text-4xl md:text-5xl font-black text-purple-700 dark:text-purple-300">
-                    Let's Learn Together!
-                  </h2>
-
-                  {/* Visual Steps - Kid-Friendly! */}
-                  <div className="space-y-6 max-w-2xl">
-                    {/* Step 1: Choose Subject */}
-                    <div className="bg-gradient-to-r from-blue-100 to-blue-50 dark:from-blue-900 dark:to-blue-950 p-6 rounded-3xl shadow-lg border-4 border-blue-300 dark:border-blue-700">
-                      <div className="flex items-center justify-center gap-4 mb-3">
-                        <div className="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center font-black text-2xl shadow-lg">1</div>
-                        <h3 className="text-2xl font-black text-blue-900 dark:text-blue-100">Choose Your Subject</h3>
-                      </div>
-                      <div className="flex items-center justify-center gap-4 text-4xl mb-2">
-                        <Calculator className="w-12 h-12 text-blue-600" />
-                        <TestTube className="w-12 h-12 text-green-600" />
-                        <BookOpen className="w-12 h-12 text-purple-600" />
-                        <ScrollText className="w-12 h-12 text-orange-600" />
-                      </div>
-                      <p className="text-lg font-bold text-blue-800 dark:text-blue-200">
-                        👈 Press the blue D-pad buttons
-                      </p>
-                      <p className="text-xl font-black text-blue-900 dark:text-blue-100 mt-2 bg-white/50 dark:bg-black/20 py-2 px-4 rounded-full">
-                        Current: {selectedSubject.charAt(0).toUpperCase() + selectedSubject.slice(1)}
-                      </p>
+              ) : (
+                <>
+                  {/* Quick Action Cards - Compact row at top */}
+                  <div className="flex gap-2 p-3 bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 border-b border-slate-200 dark:border-slate-700">
+                    <button
+                      onClick={() => router.push('/tutor')}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-green-500 hover:bg-green-400 text-white rounded-xl font-bold text-sm transition-all shadow-md"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      <span>My Coach</span>
+                    </button>
+                    <button
+                      onClick={() => router.push('/progress')}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-blue-500 hover:bg-blue-400 text-white rounded-xl font-bold text-sm transition-all shadow-md"
+                    >
+                      <Trophy className="w-4 h-4" />
+                      <span>My Journey</span>
+                    </button>
+                    <button
+                      onClick={() => router.push('/summarizer')}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-purple-500 hover:bg-purple-400 text-white rounded-xl font-bold text-sm transition-all shadow-md"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Smart Tools</span>
+                    </button>
+                    <button
+                      onClick={() => router.push('/test-generator')}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold text-sm transition-all shadow-md"
+                    >
+                      <GraduationCap className="w-4 h-4" />
+                      <span>Practice Test</span>
+                    </button>
+                  </div>
+                  
+                  {/* 💬 CHATBOX AREA - Always visible */}
+                  <div className="flex-1 flex flex-col min-h-0">
+                    {/* Chat Messages */}
+                    <div className="flex-1 overflow-y-auto p-4">
+                      {messages.length > 0 ? (
+                        <div className="space-y-3">
+                          {messages.map((message, index) => (
+                            <div
+                              key={index}
+                              className={cn(
+                                "flex",
+                                message.role === 'user' ? 'justify-end' : 'justify-start'
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  "max-w-[85%] p-4 rounded-2xl text-base shadow-md",
+                                  message.role === 'user'
+                                    ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-sm'
+                                    : 'bg-gradient-to-br from-slate-600 to-slate-700 text-white rounded-bl-sm'
+                                )}
+                              >
+                                <div className="flex items-start gap-2">
+                                  <span className="text-lg">{message.role === 'user' ? '👤' : '🤖'}</span>
+                                  <p className="leading-relaxed">{message.content}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {isAIResponding && (
+                            <div className="flex justify-start">
+                              <div className="bg-gradient-to-br from-slate-600 to-slate-700 text-white p-4 rounded-2xl rounded-bl-sm shadow-md">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-lg">🤖</span>
+                                  <div className="flex gap-1">
+                                    <div className="w-2.5 h-2.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <div className="w-2.5 h-2.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <div className="w-2.5 h-2.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                  </div>
+                                  <span className="text-sm opacity-80">Claude is thinking...</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Empty state - Ready to Talk OR Create Plan */
+                        <div className="h-full flex flex-col items-center justify-center gap-4">
+                          {/* CREATE STUDY PLAN - Primary CTA */}
+                          <button
+                            onClick={() => setShowPlanSetup(true)}
+                            className="border-4 border-dashed border-green-400 dark:border-green-600 rounded-3xl p-6 max-w-lg text-center bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
+                          >
+                            <div className="text-5xl mb-3">📋</div>
+                            <h3 className="text-xl font-black text-green-700 dark:text-green-300 mb-2">
+                              Create Your Study Plan
+                            </h3>
+                            <p className="text-sm text-green-600 dark:text-green-400">
+                              Pick your subjects, set your time, and let's <span className="font-black">ROCK N ROLL!</span>
+                            </p>
+                          </button>
+                          
+                          {/* OR TALK - Secondary option */}
+                          <div className="border-4 border-dashed border-purple-300 dark:border-purple-600 rounded-3xl p-6 max-w-lg text-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30">
+                            <div className="text-4xl mb-2">🎤</div>
+                            <h3 className="text-lg font-black text-purple-700 dark:text-purple-300 mb-1">
+                              Or Just Ask Me!
+                            </h3>
+                            <p className="text-sm text-purple-600 dark:text-purple-400 mb-3">
+                              Hold the <span className="text-red-500 font-black">big red TALK button</span>
+                            </p>
+                            <div className="flex flex-wrap gap-2 justify-center text-xs">
+                              <span className="px-2 py-1 bg-white dark:bg-slate-800 rounded-full font-semibold text-slate-600 dark:text-slate-400">
+                                "Help me with math"
+                              </span>
+                              <span className="px-2 py-1 bg-white dark:bg-slate-800 rounded-full font-semibold text-slate-600 dark:text-slate-400">
+                                "Quiz me on science"
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-
-                    {/* Step 2: Talk! */}
-                    <div className="bg-gradient-to-r from-red-100 to-pink-50 dark:from-red-900 dark:to-red-950 p-6 rounded-3xl shadow-lg border-4 border-red-300 dark:border-red-700">
-                      <div className="flex items-center justify-center gap-4 mb-3">
-                        <div className="w-12 h-12 bg-red-500 text-white rounded-full flex items-center justify-center font-black text-2xl shadow-lg">2</div>
-                        <h3 className="text-2xl font-black text-red-900 dark:text-red-100">Hold & Talk!</h3>
-                      </div>
-                      <div className="flex items-center justify-center mb-2">
-                        <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center shadow-xl animate-pulse">
-                          <Mic className="w-12 h-12 text-white" />
+                    
+                    {/* Live transcript display while speaking */}
+                    {(listening || transcript) && (
+                      <div className="px-4 pb-4">
+                        <div className="bg-gradient-to-r from-red-100 to-pink-100 dark:from-red-900/50 dark:to-pink-900/50 border-2 border-red-300 dark:border-red-600 rounded-2xl p-4 shadow-lg">
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "w-4 h-4 rounded-full",
+                              listening ? "bg-red-500 animate-pulse" : "bg-gray-400"
+                            )} />
+                            <span className="font-bold text-red-700 dark:text-red-300">
+                              {listening ? '🎤 Listening...' : '✅ Got it!'}
+                            </span>
+                          </div>
+                          {transcript && (
+                            <p className="mt-2 text-lg font-medium text-slate-800 dark:text-slate-200 italic">
+                              "{transcript}"
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <p className="text-lg font-bold text-red-800 dark:text-red-200">
-                        👉 Hold the BIG RED BUTTON and ask your question!
-                      </p>
-                    </div>
+                    )}
                   </div>
-
-                  <p className="text-lg text-muted-foreground max-w-lg font-semibold">
-                    That's it! I'm here to help you learn 🎓
-                  </p>
-                </div>
+                </>
               )}
             </div>
             
             {/* Status Bar */}
             <div className="absolute bottom-0 left-0 right-0 bg-slate-900/95 text-white px-6 py-3 flex justify-between items-center text-sm md:text-base font-mono">
               <div className="flex items-center gap-3">
-                <Sparkles className="w-5 h-5 text-yellow-400" />
-                <span className="font-bold">BEST TUTOR EVER</span>
+                {isCoachingMode ? (
+                  <>
+                    <Brain className="w-5 h-5 text-cyan-400 animate-pulse" />
+                    <span className="font-black text-cyan-400 text-base md:text-lg">EXECUTIVE FUNCTION COACH</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5 text-yellow-400" />
+                    <span className="font-black text-base md:text-lg">BEST TUTOR EVER</span>
+                  </>
+                )}
                 <div className="flex items-center gap-2 ml-4">
-                  <span className="text-xs text-slate-300">SUBJECT:</span>
-                  <span className={cn(
-                    "font-bold text-xs px-2 py-1 rounded",
-                    selectedSubject === 'math' && 'bg-blue-600',
-                    selectedSubject === 'science' && 'bg-green-600',
-                    selectedSubject === 'reading' && 'bg-purple-600',
-                    selectedSubject === 'history' && 'bg-orange-600'
-                  )}>
-                    {selectedSubject.toUpperCase()}
-                  </span>
+                  {!isCoachingMode && (
+                    <>
+                      <span className="text-sm md:text-base font-black text-slate-200 tracking-wide">SUBJECT:</span>
+                      <span className={cn(
+                        "font-black text-sm md:text-base px-2 py-1 rounded tracking-wide",
+                        selectedSubject === 'math' && 'bg-blue-600',
+                        selectedSubject === 'science' && 'bg-green-600',
+                        selectedSubject === 'reading' && 'bg-purple-600',
+                        selectedSubject === 'history' && 'bg-orange-600'
+                      )}>
+                        {selectedSubject.toUpperCase()}
+                      </span>
+                    </>
+                  )}
+                  {isCoachingMode && coachingSession.confidenceLevel && (
+                    <>
+                      <span className="text-sm md:text-base font-black text-slate-200 tracking-wide">CONFIDENCE:</span>
+                      <span className="font-black text-sm md:text-base px-2 py-1 rounded bg-cyan-600 tracking-wide">
+                        {coachingSession.confidenceLevel}/10
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                {isRecording && (
-                  <div className="flex items-center gap-2 text-red-400 animate-pulse font-bold">
+                {/* Mic status + quick fix */}
+                {!browserSupportsSpeechRecognition && (
+                  <div className="text-xs md:text-sm font-black text-yellow-300">NO SPEECH API</div>
+                )}
+                {browserSupportsSpeechRecognition && !isMicrophoneAvailable && (
+                  <button
+                    onClick={requestMicPermission}
+                    className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-xs md:text-sm font-black"
+                    title="Click to request microphone permission"
+                  >
+                    MIC BLOCKED — FIX
+                  </button>
+                )}
+                {browserSupportsSpeechRecognition && isMicrophoneAvailable && (
+                  <div className="text-xs md:text-sm font-black text-green-300">MIC OK</div>
+                )}
+                {isRecording && !isInBufferPeriod && (
+                  <div className="flex items-center gap-2 text-red-400 animate-pulse font-black text-base md:text-lg">
                     <Mic className="w-5 h-5" />
                     <span>LISTENING...</span>
                   </div>
                 )}
+                {isInBufferPeriod && (
+                  <div className="flex items-center gap-2 text-yellow-400 animate-pulse font-black text-base md:text-lg">
+                    <Mic className="w-5 h-5" />
+                    <span>KEEP TALKING... 2s</span>
+                  </div>
+                )}
                 {isAIResponding && (
-                  <div className="flex items-center gap-2 text-blue-400 font-bold">
+                  <div className="flex items-center gap-2 text-blue-400 font-black text-base md:text-lg">
                     <div className="flex gap-1">
                       <div className="w-2 h-2 bg-blue-400 rounded-full thinking-dot" />
                       <div className="w-2 h-2 bg-blue-400 rounded-full thinking-dot" />
@@ -589,7 +1243,7 @@ export function GameController({ children, className, onVoiceTranscript, onSubje
                 )}
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
-                  <span className="font-bold">READY</span>
+                  <span className="font-black text-sm md:text-base">READY</span>
                 </div>
               </div>
             </div>
@@ -614,128 +1268,58 @@ export function GameController({ children, className, onVoiceTranscript, onSubje
           
           {/* Joy-Con Controls */}
           <div className="relative z-10 h-full flex flex-col items-center justify-between py-8 md:py-12 px-6">
-            
-            {/* Admin Button */}
+
+            {/* Admin Button (top minus button - exact copy of PORTAL button) */}
             <button
-              onClick={() => handleButtonPress('admin', () => router.push('/parent-dashboard'))}
-              className={cn(
-                "w-12 h-8 bg-slate-800 hover:bg-slate-700 rounded-lg transition-all shadow-lg flex flex-col items-center justify-center border-2 border-slate-600",
-                activeButton === 'admin' ? 'scale-90 bg-slate-600' : ''
-              )}
-              title="Parent Admin Panel"
+              onClick={() => handleButtonPress('admin', () => router.push('/parent-settings'))}
+              className="flex flex-col items-center justify-center gap-1 hover:opacity-80 transition-opacity"
+              aria-label="Admin"
+              title="Admin"
             >
-              <div className="w-6 h-1 bg-white/60 mb-0.5" />
-              <div className="w-1 h-4 bg-white/60" />
-              <div className="text-[8px] text-white/80 font-bold mt-0.5">ADMIN</div>
+              <div className="w-10 h-3 bg-slate-800 rounded-full shadow-lg" />
+              <span className="text-[11px] sm:text-xs md:text-sm text-white font-black tracking-wide">
+                ADMIN
+              </span>
             </button>
 
-            {/* ===== ACTION BUTTONS (Core Learning Workflow) ===== */}
-            <div className="relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36">
-              {/* X - Talk to Coach (Top) - PRIMARY ACTION */}
-              <button
-                onClick={() => handleButtonPress('X', () => {
-                  // Show coach chat on center screen
-                  setMessages([]);
-                  // Add welcome message from coach
-                  setMessages([{
-                    role: 'assistant',
-                    content: `Hi! I'm your ${selectedSubject} coach. What would you like to learn today? Let's start by planning your homework together! 📚`
-                  }]);
-                })}
-                className={cn(
-                  "absolute top-0 left-1/2 -translate-x-1/2 w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-blue-600 hover:bg-blue-500 rounded-full shadow-xl flex flex-col items-center justify-center border-[3px] border-blue-400 transition-all",
-                  activeButton === 'X' ? 'scale-90 bg-blue-700' : ''
-                )}
-                title="Talk to Your Coach"
-              >
-                <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                <span className="text-[8px] sm:text-[10px] text-white font-bold">X</span>
-              </button>
-
-              {/* B - My Plan (Bottom) */}
-              <button
-                onClick={() => handleButtonPress('B', () => router.push('/learning-path'))}
-                className={cn(
-                  "absolute bottom-0 left-1/2 -translate-x-1/2 w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-green-600 hover:bg-green-500 rounded-full shadow-xl flex flex-col items-center justify-center border-[3px] border-green-400 transition-all",
-                  activeButton === 'B' ? 'scale-90 bg-green-700' : ''
-                )}
-                title="View My Learning Plan"
-              >
-                <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                <span className="text-[8px] sm:text-[10px] text-white font-bold">B</span>
-              </button>
-
-              {/* Y - Homework Help (Left) */}
-              <button
-                onClick={() => handleButtonPress('Y', () => {
-                  if (messages.length === 0) {
-                    // Prompt to talk to coach first
-                    setMessages([{
-                      role: 'assistant',
-                      content: '👋 First, let\'s chat with your coach to plan your homework! Click the X button above to get started. 📝'
-                    }]);
-                  } else {
-                    router.push('/tutor');
-                  }
-                })}
-                className={cn(
-                  "absolute left-0 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-purple-600 hover:bg-purple-500 rounded-full shadow-xl flex flex-col items-center justify-center border-[3px] border-purple-400 transition-all",
-                  activeButton === 'Y' ? 'scale-90 bg-purple-700' : ''
-                )}
-                title="Get Homework Help"
-              >
-                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                <span className="text-[8px] sm:text-[10px] text-white font-bold">Y</span>
-              </button>
-
-              {/* A - Test Practice (Right) */}
-              <button
-                onClick={() => handleButtonPress('A', () => {
-                  if (messages.length === 0) {
-                    // Prompt to talk to coach first
-                    setMessages([{
-                      role: 'assistant',
-                      content: '🎯 Ready for test practice? Let\'s plan your study session first! Click X to chat with your coach. 📚'
-                    }]);
-                  } else {
-                    router.push('/test-generator');
-                  }
-                })}
-                className={cn(
-                  "absolute right-0 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-orange-600 hover:bg-orange-500 rounded-full shadow-xl flex flex-col items-center justify-center border-[3px] border-orange-400 transition-all",
-                  activeButton === 'A' ? 'scale-90 bg-orange-700' : ''
-                )}
-                title="Practice Tests & Quizzes"
-              >
-                <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                <span className="text-[8px] sm:text-[10px] text-white font-bold">A</span>
-              </button>
-            </div>
             
             {/* ===== BIG RED TALK BUTTON ===== */}
             <div className="relative my-4 md:my-6">
               <button
-                onMouseDown={startRecording}
-                onMouseUp={stopRecording}
-                onMouseLeave={stopRecording}
-                onTouchStart={startRecording}
-                onTouchEnd={stopRecording}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  console.log('[BIG TALK BUTTON] Pointer down - calling startRecording()');
+                  startRecording();
+                }}
+                onPointerUp={(e) => {
+                  e.preventDefault();
+                  console.log('[BIG TALK BUTTON] Pointer up - calling stopRecording()');
+                  stopRecording();
+                }}
+                onPointerCancel={(e) => {
+                  e.preventDefault();
+                  console.log('[BIG TALK BUTTON] Pointer cancel - calling stopRecording()');
+                  stopRecording();
+                }}
                 className={cn(
+                  // Add extra padding for "sticky" touch area
                   "w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full shadow-2xl flex flex-col items-center justify-center transition-all duration-150 border-[6px] md:border-8",
+                  // Extra invisible touch zone
+                  "before:absolute before:inset-[-20px] before:rounded-full before:content-['']",
                   isRecording
                     ? "bg-gradient-to-br from-red-400 to-red-600 border-white scale-95 animate-pulse"
                     : "bg-gradient-to-br from-red-500 to-red-700 border-red-300 hover:from-red-400 hover:to-red-600 hover:scale-105 active:scale-95"
                 )}
               >
                 <Mic className={cn("w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-white", isRecording && "animate-bounce")} />
-                <span className="text-xs sm:text-sm md:text-base text-white font-black mt-1">
+                <span className="text-sm sm:text-base md:text-lg text-white font-black mt-1 tracking-wide">
                   {isRecording ? "🎤" : "TALK"}
                 </span>
               </button>
               
               {/* Glow effect when recording */}
               {isRecording && (
-                <div className="absolute inset-0 rounded-full bg-red-400/40 animate-ping" />
+                <div className="absolute inset-0 rounded-full bg-red-400/40 animate-ping pointer-events-none" />
               )}
             </div>
 
@@ -757,13 +1341,11 @@ export function GameController({ children, className, onVoiceTranscript, onSubje
             </button>
             
             {/* Button Labels - Clear Workflow */}
-            <div className="mt-4 text-[9px] sm:text-[10px] text-white/90 text-center font-bold space-y-0.5">
-              <div className="text-blue-200">X=TALK TO COACH</div>
-              <div className="text-green-200">B=MY PLAN</div>
-              <div className="text-purple-200">Y=HOMEWORK HELP</div>
-              <div className="text-orange-200">A=TEST PRACTICE</div>
-              <div className="text-blue-300 text-[8px] sm:text-[9px] mt-1">🔵 ADMIN</div>
-              <div className="text-red-300 text-[8px] sm:text-[9px]">🔴 HOLD TO TALK</div>
+            <div className="mt-4 text-sm sm:text-base md:text-lg text-white/90 text-center font-black tracking-wide space-y-1.5">
+              <div className="text-green-200">B = SMART TOOLS</div>
+              <div className="text-purple-200">Y = HOMEWORK HELP</div>
+              <div className="text-orange-200">A = TEST PRACTICE</div>
+              <div className="text-red-300 mt-2 text-base sm:text-lg md:text-xl">🔴 HOLD TO TALK</div>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster"
 import './globals.css';
 import 'katex/dist/katex.min.css';
 import { AuthProvider } from '@/context/auth-context';
-import { ServiceWorkerRegistration } from '@/components/service-worker-registration';
+// import { ServiceWorkerRegistration } from '@/components/service-worker-registration'; // TEMP DISABLED
 // import { initSentry } from '@/lib/sentry';
 
 // Initialize Sentry if configured (server-side)
@@ -117,7 +117,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="BestTutorEver" />
       </head>
       <body className="font-body antialiased">
-        <ServiceWorkerRegistration />
+        {/* <ServiceWorkerRegistration /> */}
         <AuthProvider>
           {children}
           <Toaster />
